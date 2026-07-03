@@ -1,0 +1,40 @@
+\section{Implementation}
+\subsection{Overall System Architecture}
+Figure \ref{fig:arch} (to be added) describes the overall system architecture, including the main components:
+\begin{enumerate}
+    \item \textbf{Kubernetes Cluster + Knative Serving:} The platform running serverless functions/services.
+    \item \textbf{Prometheus:} Collects real-time metrics from Knative Autoscaler, Activator, Queue-Proxy.
+    \item \textbf{ML Forecasting Service:} The workload forecasting inference service, receiving data from Prometheus, returning predicted values.
+    \item \textbf{Predictive Scaler Controller:} The coordination component, reading forecast results and adjusting Knative's autoscaling configuration (e.g., via minScale or External Scaler/KEDA).
+\end{enumerate}
+
+The data flow operates in a cycle: Prometheus collects metrics $\rightarrow$ ML Service queries historical data and generates forecasts $\rightarrow$ Predictive Scaler Controller calculates the required number of pods according to formula (2.4) $\rightarrow$ Controller calls Kubernetes/Knative API to adjust the pod count.
+
+\subsection{Environment Installation and Configuration}
+\subsubsection{Installing the Kubernetes Cluster}
+Describe the tool used (minikube/kind/k3d or cloud K8s) and the installation steps.
+
+\subsubsection{Installing Knative Serving}
+Describe the installation of Knative Serving along with the networking layer (Kourier or Istio).
+
+\begin{lstlisting}[language=bash, caption={Installing Knative Serving with Kourier}]
+kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.x/serving-crds.yaml
+kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.x/serving-core.yaml
+kubectl apply -f https://github.com/knative-extensions/net-kourier/releases/download/knative-v1.x/kourier.yaml
+\end{lstlisting}
+Listing 3.1 illustrates the basic installation steps (need to replace with specific versions when deployed in reality).
+
+\subsubsection{Configuring Prometheus}
+Describe installing Prometheus Operator/ServiceMonitor to scrape metrics from Knative Autoscaler and Queue-Proxy.
+
+\subsection{Building the Data Collection and Preprocessing Pipeline}
+Describe the PromQL queries used to extract request rate/concurrency data over time, and preprocessing steps: resampling at fixed time intervals, normalization, creating sliding windows for the time-series forecasting problem.
+
+\subsection{Developing the Machine Learning Model}
+Present the specific LSTM network architecture (number of layers, hidden state size, input/output window length), the training process, and packaging the model into an inference service (REST API).
+
+\subsection{Developing the Predictive Scaler Coordinator}
+Present the detailed design of the Predictive Scaler Controller: how to read forecast results, apply formula (2.4), call the Kubernetes API to adjust the autoscaling configuration, and a safe fallback mechanism when the forecasting model deviates significantly from reality.
+
+\subsection{Load Testing Tools}
+Describe the load generation tools (k6/Locust/hey) and traffic scenarios designed to simulate different patterns, serving the tests in Section 4.

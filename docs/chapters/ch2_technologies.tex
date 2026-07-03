@@ -1,0 +1,81 @@
+\section{Related Technologies}
+\subsection{Kubernetes}
+\subsubsection{Concept}
+Kubernetes (K8s) \cite{kubernetes} is an open-source platform used for automating the deployment, scaling, and management of containerized applications.
+
+\subsubsection{Characteristics/Capabilities}
+Describe core components: Pod, Deployment, Service, ReplicaSet, Horizontal Pod Autoscaler (HPA), etcd, control plane/worker node...
+
+\subsubsection{Function/Role in the Project}
+Kubernetes acts as the infrastructure layer for Knative to operate upon.
+
+\subsubsection{Why Choose Kubernetes}
+Reasons for selection: industry standard (de-facto standard) for container orchestration, rich ecosystem, direct compatibility with Knative.
+
+\subsection{Knative}
+\subsubsection{Concept}
+Knative \cite{knative} is an open-source framework running on Kubernetes, providing the necessary components to build, deploy, and manage modern serverless applications.
+
+\subsubsection{Characteristics/Capabilities}
+Describe the main components of Knative Serving:
+\begin{itemize}
+    \item \textbf{Activator:} Receives requests when no pods are running (scale-to-zero), keeping requests in a queue until a pod is ready.
+    \item \textbf{Autoscaler (KPA - Knative Pod Autoscaler):} Determines the necessary number of pods based on current concurrency/RPS.
+    \item \textbf{Queue-Proxy:} A sidecar container that measures metrics and limits concurrency for each pod.
+    \item \textbf{Revision / Route / Service:} Resources (CRDs) that manage versions and route traffic.
+\end{itemize}
+
+\subsubsection{Function/Role in the Project}
+Knative is the main subject of intervention, extending the default autoscaling mechanism with the forecasting module.
+
+\subsubsection{Why Choose Knative}
+Briefly compare with other serverless platforms (OpenFaaS, Kubeless, AWS Lambda) and reasons for selection: open-source, runs on Kubernetes, customizable autoscaler via External Scaler (such as KEDA \cite{keda}) or Custom Metrics mechanism.
+
+\subsection{Prometheus}
+\subsubsection{Concept}
+Prometheus \cite{prometheus} is an open-source monitoring system and time-series database.
+
+\subsubsection{Characteristics/Capabilities}
+Pull-based scraping model, PromQL query language, native integration capabilities with Kubernetes and Knative.
+
+\subsubsection{Function/Role in the Project}
+Collecting historical data on request rate, concurrency, and pod count over time---acting as a training data source for the forecasting model.
+
+\subsubsection{Why Choose Prometheus}
+It is the default/recommended monitoring tool in the Kubernetes and Knative ecosystem, easy to integrate, with a large supporting community.
+
+\subsection{Machine Learning for Time-Series Forecasting}
+\subsubsection{Concept}
+Time-series forecasting is the problem of predicting future values of a variable based on previously observed values in the past.
+
+\subsubsection{LSTM Model}
+Long Short-Term Memory (LSTM) \cite{lstm, lstm_forecasting} is a variant of Recurrent Neural Networks designed to overcome the vanishing gradient problem when learning long-term dependencies in data sequences. It has proven highly effective in forecasting bursty and periodic traffic patterns commonly seen in serverless environments.
+
+The hidden state of an LSTM cell at time $t$ is updated via gates as follows:
+\begin{equation}
+    f_{t} = \sigma(W_{f} \cdot [h_{t-1}, x_{t}] + b_{f})
+\end{equation}
+\begin{equation}
+    i_{t} = \sigma(W_{i} \cdot [h_{t-1}, x_{t}] + b_{i})
+\end{equation}
+\begin{equation}
+    h_{t} = o_{t} \odot \tanh(C_{t})
+\end{equation}
+where $f_{t}$ is the forget gate, $i_{t}$ is the input gate, and $h_{t}$ is the output hidden state.
+
+\subsubsection{Why Choose LSTM}
+Reason: suitable for workload data with cyclical patterns (hourly/daily/weekly), moderate computational complexity compared to Transformer architectures, easy to deploy for real-time inference with low latency.
+
+\subsection{Methodology/Algorithm: Predictive Pre-warming}
+\subsubsection{Concept}
+Predictive Pre-warming is a proactive strategy to maintain a minimum number of pods in a ``warm'' state based on workload forecasting results, rather than just scaling reactively based on current traffic like the default KPA mechanism.
+
+\subsubsection{Formula for determining the number of pods to pre-warm}
+The minimum number of pods to maintain at time $t+\Delta t$ can be estimated according to the formula:
+\begin{equation}
+    N_{\text{pod}}(t+\Delta t) = \left\lceil \frac{\hat{Y}(t+\Delta t)}{C_{\text{target}}} \right\rceil
+\end{equation}
+where $\hat{Y}(t+\Delta t)$ is the workload value (concurrency/RPS) predicted by the LSTM model at time $t+\Delta t$, and $C_{\text{target}}$ is the target concurrency threshold per pod (a configuration parameter in Knative). Details on how to integrate formula into the controller are presented in Section 3.5.
+
+\subsubsection{(Optional) Deep Reinforcement Learning for Coordination}
+Introduce the concept of Reinforcement Learning (RL) and its potential role in learning optimal scaling policies. RL agents can effectively balance the latency reduction and resource costs by continuously adapting to traffic changes \cite{suresh2020serverless}. The feasibility of this content is evaluated in Section 4.5.

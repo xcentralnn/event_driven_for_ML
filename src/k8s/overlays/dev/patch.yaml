@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-forecasting-service
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: ml-service
+        image: python:3.9-slim
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args: ["pip install Flask && python /app/main.py"]
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+      volumes:
+      - name: app-code
+        configMap:
+          name: dev-ml-code
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-scaler-controller
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: controller
+        image: python:3.9-slim
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args: ["pip install requests kubernetes && python /app/main.py"]
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+      volumes:
+      - name: app-code
+        configMap:
+          name: dev-controller-code
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-service
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: dashboard
+        image: python:3.9-slim
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args: ["pip install streamlit requests pandas && streamlit run /app/main.py --server.port=8501 --server.address=0.0.0.0"]
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+      volumes:
+      - name: app-code
+        configMap:
+          name: dev-dashboard-code

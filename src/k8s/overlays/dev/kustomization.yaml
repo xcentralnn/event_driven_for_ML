@@ -1,0 +1,22 @@
+namespace: knative-predictive-scaler
+namePrefix: dev-
+
+resources:
+- ../../base
+
+patchesStrategicMerge:
+- patch.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- name: ml-code
+  files:
+  - main.py=ml-main.py
+- name: controller-code
+  files:
+  - main.py=ctrl-main.py
+- name: dashboard-code
+  files:
+  - main.py=dash-main.py

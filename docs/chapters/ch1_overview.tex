@@ -1,0 +1,29 @@
+\section{Overview}
+\subsection{Problem Statement}
+Serverless computing architecture is increasingly being widely adopted due to its ability to automatically scale resources (autoscaling) and its pay-as-you-go billing model based on actual usage. However, one of the biggest limitations of serverless is the cold-start phenomenon \cite{shahrad2020serverless}: when there is no ``warm'' instance (container/pod) available to process, the system must initialize a new container from scratch, causing significant latency for the first request.
+
+Knative \cite{knative} is an open-source serverless platform running on Kubernetes \cite{kubernetes}, utilizing the Knative Pod Autoscaler (KPA) mechanism to automatically scale the number of pods based on metrics like current concurrency or requests-per-second. This mechanism is reactive---it only scales up when actual traffic arrives---so it cannot completely eliminate cold-start latency, especially in scenarios with sudden traffic fluctuations or for functions with long container initialization times.
+
+\subsection{Objectives}
+The project aims at the following specific objectives:
+\begin{enumerate}
+    \item Build a workload forecasting system based on historical data collected from Prometheus \cite{prometheus} to proactively predict near-future traffic trends.
+    \item Design and implement a Predictive Pre-warming strategy---keeping an appropriate number of pods ``warm'' before actual traffic increases, instead of waiting and reacting after the traffic has arrived.
+    \item Integrate the forecasting module (using a Machine Learning model built with PyTorch \cite{pytorch}) into Knative's autoscaling pipeline.
+    \item Quantitatively evaluate the effectiveness of the proposed solution compared to the default Knative Pod Autoscaler mechanism in two aspects: (i) cold-start latency and (ii) idle resource cost.
+\end{enumerate}
+
+\subsection{Scope of the Project}
+The project focuses on testing within a small/medium-scale Kubernetes cluster (single-node or multi-node cluster), using simple HTTP functions/services as test subjects. The project does not delve into security issues, multi-tenancy, or optimizations for stateful workloads.
+
+\subsection{Summary of Implementation}
+To achieve the above objectives, the project's implementation includes:
+\begin{itemize}
+    \item Deploying Knative on Kubernetes as the serverless operating platform.
+    \item Using Prometheus to collect metrics on traffic and function startup latency.
+    \item Building a Machine Learning model for workload forecasting using Python and PyTorch.
+    \item Designing a proactive Pre-warming strategy based on forecasting results.
+    \item Evaluating and balancing idle resource costs and system response time.
+\end{itemize}
+
+The remainder of the paper is organized as follows: Section 2 presents the foundational technologies and methods used; Section 3 describes the system implementation process in detail; Section 4 presents the test scenarios and analyzes the results; finally, Section 5 summarizes the project and proposes future directions.

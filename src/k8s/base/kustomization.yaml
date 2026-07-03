@@ -1,0 +1,7 @@
+namespace: knative-predictive-scaler
+
+resources:
+- namespace.yaml
+- ml-service
+- controller
+- dashboard

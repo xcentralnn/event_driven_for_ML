@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-forecasting-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-forecasting
+  template:
+    metadata:
+      labels:
+        app: ml-forecasting
+    spec:
+      containers:
+      - name: ml-service
+        image: ml-forecasting-service:latest
+        ports:
+        - containerPort: 8080

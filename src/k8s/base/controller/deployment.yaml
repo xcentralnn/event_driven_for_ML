@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-scaler-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: predictive-scaler
+  template:
+    metadata:
+      labels:
+        app: predictive-scaler
+    spec:
+      serviceAccountName: predictive-scaler-sa
+      containers:
+      - name: controller
+        image: predictive-scaler-controller:latest

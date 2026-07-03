@@ -1,0 +1,23 @@
+\section{Conclusion}
+\subsection{Summary}
+Summarize the achieved results, mapping them to each objective set out in Section 1.2:
+\begin{itemize}
+    \item Cold-start latency reduction achieved (citing data from Section 4.2).
+    \item Workload forecasting model accuracy (Section 4.3).
+    \item Resource cost efficiency (Section 4.4).
+\end{itemize}
+
+\subsection{Limitations}
+\begin{itemize}
+    \item The training data used in testing is still simulated and does not fully reflect the diversity of real-world traffic.
+    \item The scale of the test cluster is small, not yet evaluating scalability at a production scale.
+    \item The Machine Learning model needs to be retrained periodically to adapt to changing traffic patterns over time.
+\end{itemize}
+
+\subsection{Future Directions}
+\begin{itemize}
+    \item Expand the architecture towards multi-model serving, supporting multiple types of functions/services with different workload characteristics.
+    \item Apply online learning mechanisms for the model to update automatically with new data, reducing the need for manual retraining.
+    \item Fully develop the Deep Reinforcement Learning approach evaluated for feasibility in Section 4.6.
+    \item Test on a real cloud environment with a larger scale and more diverse workloads.
+\end{itemize}

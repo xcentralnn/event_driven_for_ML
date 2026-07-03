@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: predictive-scaler-sa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: predictive-scaler-role
+rules:
+- apiGroups: ["serving.knative.dev"]
+  resources: ["services", "revisions"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: predictive-scaler-binding
+subjects:
+- kind: ServiceAccount
+  name: predictive-scaler-sa
+  namespace: knative-predictive-scaler
+roleRef:
+  kind: ClusterRole
+  name: predictive-scaler-role
+  apiGroup: rbac.authorization.k8s.io

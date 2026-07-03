@@ -1,0 +1,43 @@
+\section{Test Scenarios and Results}
+\subsection{Test Environment}
+Describe hardware/cloud configuration, Kubernetes/Knative versions, resource parameters (CPU/RAM) allocated for the test cluster.
+
+\subsection{Scenario 1: Cold-start Latency Comparison}
+\subsubsection{Specification}
+Describe the traffic pattern used, number of test iterations, and two comparison configurations: (a) default Knative Pod Autoscaler, (b) the proposed Predictive Pre-warming system.
+\subsubsection{Results}
+Results are presented in Table \ref{tab:results1} (actual data to be added).
+\subsubsection{Discussion/Evaluation}
+Analyze the latency reduction and the conditions under which the proposed system operates effectively or ineffectively.
+
+\subsection{Scenario 2: Evaluating Forecasting Model Accuracy}
+\subsubsection{Specification}
+Describe the test dataset and evaluation metrics: MAE, RMSE, MAPE.
+\subsubsection{Results}
+Present charts comparing forecasted values with actual values over time.
+\subsubsection{Discussion/Evaluation}
+Analyze the prediction lag between forecasts and actual events, and the impact of the prediction horizon length on accuracy.
+
+\subsection{Scenario 3: Evaluating Resource Costs}
+\subsubsection{Specification}
+Describe the measurement methodology: pod-hour, CPU/memory consumption in each scaling strategy.
+\subsubsection{Results}
+Comparison table of estimated costs between configurations.
+\subsubsection{Discussion/Evaluation}
+Analyze the trade-off between latency reduction and increased idle resource costs; propose an optimal balance point (appropriate pre-warming threshold).
+
+\subsection{Scenario 4: Stress Test with Abnormal Traffic}
+\subsubsection{Specification}
+Describe a sudden traffic scenario that does not follow learned patterns to test system robustness.
+\subsubsection{Results}
+Present measurement results.
+\subsubsection{Discussion/Evaluation}
+Evaluate the system's resilience when the forecasting model encounters out-of-distribution data.
+
+\subsection{Scenario 5 (Optional): Feasibility of Deep Reinforcement Learning}
+\subsubsection{Specification}
+Compare the scaling policy learned by DRL with the heuristic based on LSTM forecasts.
+\subsubsection{Results}
+Present comparison results.
+\subsubsection{Discussion/Evaluation}
+Analyze the pros, cons, and practical implementation complexity of the DRL approach.
