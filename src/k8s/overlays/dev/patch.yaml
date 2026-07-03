@@ -50,12 +50,13 @@ spec:
   replicas: 1
   template:
     spec:
+      serviceAccountName: dev-predictive-scaler-sa
       containers:
       - name: dashboard
         image: python:3.9-slim
         imagePullPolicy: IfNotPresent
         command: ["/bin/sh", "-c"]
-        args: ["pip install streamlit requests pandas && streamlit run /app/main.py --server.port=8501 --server.address=0.0.0.0"]
+        args: ["pip install streamlit requests pandas kubernetes plotly && streamlit run /app/main.py --server.port=8501 --server.address=0.0.0.0 --theme.base=dark --theme.primaryColor=#38BDF8"]
         volumeMounts:
         - name: app-code
           mountPath: /app
