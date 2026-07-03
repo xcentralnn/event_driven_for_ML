@@ -4,16 +4,16 @@ This repository contains the implementation and documentation for optimizing col
 
 By proactively scaling Kubernetes Deployments based on Time-Series Forecasting (LSTM), we can significantly reduce the latency overhead caused by "Scale-to-Zero" cold starts, while still maintaining high resource efficiency.
 
-## 🚀 Key Features
+## Key Features
 
-- **🧠 ML Forecasting Service:** A Flask-based mock LSTM service that simulates traffic forecasting. It includes an advanced 3-phase spike simulation (Ramp Up -> Hold Peak -> Ramp Down) to realistically emulate flash-sale scenarios.
-- **⚙️ Predictive Scaler Controller:** A custom Kubernetes Python controller that polls the ML Service and preemptively scales the target deployment. Features a built-in **Smoothing Algorithm (Stabilization Window)** that caps scale-up/scale-down velocity to prevent thrashing and cluster exhaustion (Max 10 Pods, +/- 2 Pods per cycle).
-- **📊 Executive Dashboard:** A premium, real-time Streamlit dashboard showcasing the system's performance.
+- **ML Forecasting Service:** A Flask-based mock LSTM service that simulates traffic forecasting. It includes an advanced 3-phase spike simulation (Ramp Up -> Hold Peak -> Ramp Down) to realistically emulate flash-sale scenarios.
+- **Predictive Scaler Controller:** A custom Kubernetes Python controller that polls the ML Service and preemptively scales the target deployment. Features a built-in **Smoothing Algorithm (Stabilization Window)** that caps scale-up/scale-down velocity to prevent thrashing and cluster exhaustion (Max 10 Pods, +/- 2 Pods per cycle).
+- **Executive Dashboard:** A premium, real-time Streamlit dashboard showcasing the system's performance.
   - **Single Window View:** KPIs, Trajectory, and Pod Topology side-by-side with zero scrolling required.
   - **ML Model Insights Tab:** Connects real-time prediction data to a mathematically simulated confidence-interval forecast graph.
   - **Premium AWS-style UI:** Styled with deep slate gradient animations and a sleek dark mode.
 
-## 📁 Repository Structure
+## Repository Structure
 
 - **`docs/`**: Contains the LaTeX source code for the research report/thesis, including chapters, references, and the compiled `main.pdf`.
 - **`src/`**: Contains the source code for the system's microservices and Kubernetes deployment manifests.
@@ -25,7 +25,7 @@ By proactively scaling Kubernetes Deployments based on Time-Series Forecasting (
     - **`base/`**: Core deployments, services, and RBAC permissions.
     - **`overlays/`**: Environment-specific overrides (e.g., `dev`).
 
-## 🛠️ Deployment Instructions
+## Deployment Instructions
 
 ### Prerequisites
 - A running Kubernetes cluster (e.g., Kind, Minikube, or Docker Desktop K8s).
@@ -43,7 +43,7 @@ kubectl apply -k src/k8s/overlays/dev
 kubectl get pods -n knative-predictive-scaler
 ```
 
-## 🎮 How to use the Dashboard
+## How to use the Dashboard
 
 Once all pods are running, port-forward the Streamlit dashboard to your local machine:
 
