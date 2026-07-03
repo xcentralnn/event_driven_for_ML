@@ -37,16 +37,54 @@ st.markdown("""
         color: #F3F4F6;
         font-family: 'Inter', sans-serif;
     }
-    [data-testid="stMetric"] {
-        background: transparent !important;
-        border: none !important;
+    @keyframes shine {
+        to { background-position: 200% center; }
+    }
+    .shiny-text {
+        background: linear-gradient(to right, #38BDF8 20%, #A78BFA 40%, #A78BFA 60%, #38BDF8 80%);
+        background-size: 200% auto;
+        color: #000;
+        background-clip: text;
+        text-fill-color: transparent;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shine 3s linear infinite;
+        font-weight: 900;
+    }
+    .kpi-container {
         padding: 0 !important;
+        background: transparent !important;
+    }
+    .kpi-label {
+        color: #9CA3AF;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: -10px;
+    }
+    .kpi-val {
+        font-size: 2.2rem;
+        font-weight: 700;
+        letter-spacing: -1px;
+        margin-top: 0px;
     }
     [data-testid="stMetricValue"] {
-        color: #38BDF8 !important;
         font-size: 2.2rem !important;
         font-weight: 700;
         letter-spacing: -1px;
+    }
+    /* Distinct Colors for the 4 KPIs */
+    [data-testid="column"]:nth-of-type(1) [data-testid="stMetricValue"] {
+        color: #38BDF8 !important; /* Sky Blue for Prediction */
+    }
+    [data-testid="column"]:nth-of-type(2) [data-testid="stMetricValue"] {
+        color: #34D399 !important; /* Emerald for Replicas */
+    }
+    [data-testid="column"]:nth-of-type(3) [data-testid="stMetricValue"] {
+        color: #FBBF24 !important; /* Amber for Cold Starts */
+    }
+    [data-testid="column"]:nth-of-type(4) [data-testid="stMetricValue"] {
+        color: #A78BFA !important; /* Purple for Efficiency */
     }
     [data-testid="stMetricLabel"] {
         color: #9CA3AF !important;
@@ -89,7 +127,7 @@ if 'total_requests' not in st.session_state:
 # --- Sidebar ---
 with st.sidebar:
     st.header("Configuration")
-    st.markdown("**ML Framework:** LSTM (PyTorch)")
+    st.markdown("**ML Framework:** <span class='shiny-text'>LSTM (PyTorch)</span>", unsafe_allow_html=True)
     st.markdown("**Algorithm:** Time-Series Forecasting")
     st.markdown("**Target App:** `dev-target-app`")
     st.markdown("---")
@@ -201,14 +239,14 @@ with tab_main:
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
     with kpi1:
-        st.metric(label="Predicted Concurrency (RPS)", value=f"{pred:,}")
+        st.markdown(f"<div class='kpi-container'><p class='kpi-label'>Predicted Concurrency (RPS)</p><h1 class='kpi-val' style='color:#38BDF8;'>{pred:,}</h1></div>", unsafe_allow_html=True)
     with kpi2:
-        st.metric(label="Actual Ready Replicas", value=f"{active_replicas:,}")
+        st.markdown(f"<div class='kpi-container'><p class='kpi-label'>Actual Ready Replicas</p><h1 class='kpi-val' style='color:#34D399;'>{active_replicas:,}</h1></div>", unsafe_allow_html=True)
     with kpi3:
-        st.metric(label="Cold Starts Prevented", value=f"{st.session_state.cold_starts_prevented:,}")
+        st.markdown(f"<div class='kpi-container'><p class='kpi-label'>Cold Starts Prevented</p><h1 class='kpi-val' style='color:#FBBF24;'>{st.session_state.cold_starts_prevented:,}</h1></div>", unsafe_allow_html=True)
     with kpi4:
         efficiency = (active_replicas / pred * 100) if pred > 0 else 100
-        st.metric(label="Resource Efficiency Score", value=f"{min(100, efficiency):.1f}%")
+        st.markdown(f"<div class='kpi-container'><p class='kpi-label'>Resource Efficiency Score</p><h1 class='kpi-val' style='color:#A78BFA;'>{min(100, efficiency):.1f}%</h1></div>", unsafe_allow_html=True)
 
     # --- Layout: Main Panel (1 Row, 3 Columns) ---
     st.markdown("<br>", unsafe_allow_html=True)
@@ -219,10 +257,13 @@ with tab_main:
         fig = px.line(st.session_state.history, x='Time', y=['Predicted Concurrency', 'Active Replicas'],
                       labels={'value': 'Count', 'variable': 'Metric'},
                       color_discrete_map={"Predicted Concurrency": "#38BDF8", "Active Replicas": "#34D399"})
+        fig.update_traces(line=dict(width=3, shape='spline'), fill='tozeroy')
         fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", 
                           font_color="#9CA3AF", margin=dict(l=0, r=0, t=10, b=0),
                           legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                          height=280)
+                          height=280,
+                          xaxis=dict(showgrid=True, gridcolor='rgba(75, 85, 99, 0.2)'),
+                          yaxis=dict(showgrid=True, gridcolor='rgba(75, 85, 99, 0.2)'))
         st.plotly_chart(fig)
 
     with col_donut:
@@ -232,11 +273,18 @@ with tab_main:
         colors = ['#34D399', '#F87171', '#FBBF24']
         
         if sum(values) > 0:
-            fig_donut = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.6, marker_colors=colors)])
+            # Filter out 0 values so they don't clutter the chart
+            active_labels = [l for l, v in zip(labels, values) if v > 0]
+            active_values = [v for v in values if v > 0]
+            active_colors = [c for c, v in zip(colors, values) if v > 0]
+            
+            fig_donut = go.Figure(data=[go.Pie(labels=active_labels, values=active_values, hole=.65, marker_colors=active_colors, 
+                                               textinfo='percent', textposition='inside', textfont=dict(size=14, color='white'), pull=[0.05 if l == 'Running' else 0 for l in active_labels])])
             fig_donut.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                                    font_color="#9CA3AF", margin=dict(l=10, r=10, t=10, b=10),
-                                    showlegend=True, height=280)
-            st.plotly_chart(fig_donut)
+                                    font_color="#9CA3AF", margin=dict(l=0, r=0, t=10, b=40),
+                                    showlegend=True, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5),
+                                    height=280)
+            st.plotly_chart(fig_donut, use_container_width=True)
         else:
             st.info("No Pods active.")
 
@@ -256,25 +304,30 @@ with tab_ml:
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("LSTM Time-Series Forecasting Model")
     
-    col_ml_1, col_ml_2 = st.columns([1, 2])
+    col_ml_1, col_ml_2 = st.columns([1, 2.8])
     with col_ml_1:
         st.markdown("""
-        **Model Architecture:** 
-        - 3-Layer Long Short-Term Memory (LSTM)
-        - Hidden Size: 128 units
-        - Dropout: 0.2
-        
-        **Training Metrics:**
-        - RMSE: `0.042`
-        - Loss (MSE): `0.0018`
-        - Optimizer: `AdamW`
-        
-        **Inference Pipeline:**
-        1. Ingest PromQL Metrics (Latency, RPS)
-        2. Data Imputation & Normalization
-        3. Forward Pass (LSTM)
-        4. Denormalize & Output Prediction
-        """)
+        <div style='background:rgba(31, 41, 55, 0.4); padding:20px; border-radius:12px; border:1px solid rgba(75, 85, 99, 0.3); backdrop-filter: blur(10px); box-shadow: 0 4px 6px rgba(0,0,0,0.3);'>
+            <h4 style='color:#38BDF8; margin-top:0; border-bottom:1px solid rgba(56, 189, 248, 0.3); padding-bottom:5px;'>1. Model Architecture</h4>
+            <ul style='color:#E5E7EB; font-size: 0.95em;'>
+                <li><b>Network:</b> 3-Layer LSTM</li>
+                <li><b>Hidden Size:</b> 128 units</li>
+                <li><b>Dropout Rate:</b> 0.2</li>
+            </ul>
+            <h4 style='color:#34D399; border-bottom:1px solid rgba(52, 211, 153, 0.3); padding-bottom:5px;'>2. Training Metrics</h4>
+            <ul style='color:#E5E7EB; font-size: 0.95em;'>
+                <li><b>RMSE:</b> <span style='color:#34D399; font-weight:bold;'>0.042</span> | <b>Loss:</b> <span style='color:#34D399; font-weight:bold;'>0.0018</span></li>
+                <li><b>Optimizer:</b> AdamW</li>
+            </ul>
+            <h4 style='color:#A78BFA; border-bottom:1px solid rgba(167, 139, 250, 0.3); padding-bottom:5px;'>3. Inference Pipeline</h4>
+            <ol style='color:#E5E7EB; font-size: 0.95em;'>
+                <li>Ingest PromQL Metrics (Latency, RPS)</li>
+                <li>Data Imputation & Normalization</li>
+                <li>Forward Pass (LSTM)</li>
+                <li>Denormalize & Output Prediction</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
     with col_ml_2:
         # Generate forecast graph based on REAL data
         if not st.session_state.history.empty:
@@ -291,13 +344,15 @@ with tab_ml:
             lower_bound = [max(0, p - 1.5) for p in forecast]
             
             fig_ml = go.Figure()
-            fig_ml.add_trace(go.Scatter(x=t, y=historical, name='Historical (Actual)', line=dict(color='#9CA3AF', width=3)))
-            fig_ml.add_trace(go.Scatter(x=future_t, y=forecast, name='LSTM Forecast', line=dict(color='#38BDF8', dash='dash', width=3)))
-            fig_ml.add_trace(go.Scatter(x=future_t, y=upper_bound, mode='lines', line=dict(width=0), showlegend=False, name='Upper Bound', hoverinfo='skip'))
-            fig_ml.add_trace(go.Scatter(x=future_t, y=lower_bound, mode='lines', line=dict(width=0), fill='tonexty', fillcolor='rgba(56, 189, 248, 0.2)', showlegend=False, name='Lower Bound', hoverinfo='skip'))
+            fig_ml.add_trace(go.Scatter(x=t, y=historical, name='Historical (Actual)', line=dict(color='#9CA3AF', width=3, shape='spline'), fill='tozeroy', fillcolor='rgba(156, 163, 175, 0.1)'))
+            fig_ml.add_trace(go.Scatter(x=future_t, y=forecast, name='LSTM Forecast', line=dict(color='#38BDF8', dash='dash', width=3, shape='spline')))
+            fig_ml.add_trace(go.Scatter(x=future_t, y=upper_bound, mode='lines', line=dict(width=0, shape='spline'), showlegend=False, name='Upper Bound', hoverinfo='skip'))
+            fig_ml.add_trace(go.Scatter(x=future_t, y=lower_bound, mode='lines', line=dict(width=0, shape='spline'), fill='tonexty', fillcolor='rgba(56, 189, 248, 0.15)', showlegend=False, name='Lower Bound', hoverinfo='skip'))
             
-            fig_ml.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="#9CA3AF", margin=dict(l=0, r=0, t=10, b=0), height=320)
-            st.plotly_chart(fig_ml)
+            fig_ml.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="#9CA3AF", margin=dict(l=0, r=0, t=10, b=0), height=460,
+                                 xaxis=dict(showgrid=True, gridcolor='rgba(75, 85, 99, 0.2)'),
+                                 yaxis=dict(showgrid=True, gridcolor='rgba(75, 85, 99, 0.2)'))
+            st.plotly_chart(fig_ml, use_container_width=True)
         else:
             st.info("Waiting for data to generate forecast...")
 
