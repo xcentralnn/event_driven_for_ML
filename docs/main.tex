@@ -1,5 +1,5 @@
-\documentclass[10pt,a4paper,twocolumn]{article}
-\usepackage[utf8]{inputenc}
+\documentclass[12pt,a4paper]{article}
+\usepackage{fontspec}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{amsfonts}
@@ -9,8 +9,11 @@
 \usepackage{geometry}
 \usepackage{listings}
 \usepackage{indentfirst}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, calc}
 
-\geometry{margin=0.75in}
+\geometry{left=3cm, right=2cm, top=2cm, bottom=2cm}
+\linespread{1.6} % Tăng giãn dòng để đạt chuẩn 25-30 trang dễ dàng hơn
 
 \lstset{
     basicstyle=\ttfamily\small,
@@ -21,26 +24,36 @@
 
 \begin{document}
 
-\title{\Large\textbf{Optimizing Cold-start for Knative Using Predictive Scheduling and Machine Learning}}
+\title{\LARGE\textbf{Tối ưu hóa thời gian khởi động lạnh (Cold-start) cho Serverless Knative sử dụng Lập lịch Dự đoán và Học Máy}}
 
 \author{
-\textbf{Nguyen Ngoc Tieu Long} (250202047)\\
-\textit{Faculty of Information Technology}\\
-\textit{University of Information Technology}\\[1ex]
-\textbf{Supervisor: PhD. Huynh Van Dang} \\
-\textit{Faculty of Information Technology}\\
-\textit{University of Information Technology}
+\textbf{Nguyễn Ngọc Tiêu Long} (250202047)\\
+\textit{Khoa Công nghệ Thông tin}\\
+\textit{Đại học Công nghệ Thông tin}\\[1ex]
+\textbf{Giảng viên hướng dẫn: TS. Huỳnh Văn Đăng} \\
+\textit{Khoa Công nghệ Thông tin}\\
+\textit{Đại học Công nghệ Thông tin}
 }
-\date{June 20, 2026}
+\date{Tháng 7 năm 2026}
 
 \maketitle
+\newpage
 
 \begin{abstract}
-Serverless computing has gained immense popularity due to its auto-scaling capabilities and pay-as-you-go billing model. However, the cold-start phenomenon remains a major challenge, causing significant latency for initial requests when no active instances are available. This research addresses the cold-start problem in Knative—a Kubernetes-based serverless platform—by proposing a predictive scheduling approach using Machine Learning. Instead of relying on Knative's default reactive scaling mechanism (Knative Pod Autoscaler), we developed a Long Short-Term Memory (LSTM) time-series forecasting model to predict future workload trends based on historical traffic data collected via Prometheus. Based on these predictions, a proactive ``Pre-warming'' strategy is implemented to initialize and keep an appropriate number of pods warm before actual traffic surges occur. Experimental results in a simulated environment demonstrate that our proposed predictive system significantly reduces cold-start latency compared to the default mechanism. Furthermore, the study evaluates the trade-off between latency reduction and idle resource consumption, proving that the solution provides an effective and balanced approach for optimizing serverless performance in dynamic traffic environments.
+Điện toán phi máy chủ (Serverless computing) đang ngày càng phổ biến nhờ khả năng tự động mở rộng quy mô và mô hình thanh toán theo mức sử dụng thực tế (pay-as-you-go). Tuy nhiên, hiện tượng "khởi động lạnh" (cold-start) vẫn là một thách thức lớn, gây ra độ trễ đáng kể cho các yêu cầu ban đầu khi không có phiên bản (instance) nào đang hoạt động. Nghiên cứu này giải quyết bài toán khởi động lạnh trong Knative — một nền tảng serverless dựa trên Kubernetes — bằng cách đề xuất phương pháp lập lịch dự đoán sử dụng Học máy (Machine Learning). Thay vì phụ thuộc vào cơ chế mở rộng phản ứng mặc định của Knative (Knative Pod Autoscaler), chúng tôi đã phát triển một mô hình dự báo chuỗi thời gian Bộ nhớ ngắn hạn dài (Long Short-Term Memory - LSTM) để dự đoán xu hướng tải công việc trong tương lai dựa trên dữ liệu lưu lượng truy cập lịch sử được thu thập qua Prometheus. Dựa trên các dự đoán này, một chiến lược "Làm ấm trước" (Pre-warming) chủ động được triển khai để khởi tạo và giữ cho một số lượng pod thích hợp ở trạng thái sẵn sàng trước khi lưu lượng truy cập thực sự tăng vọt. Kết quả thực nghiệm trong môi trường mô phỏng chứng minh rằng hệ thống dự đoán đề xuất của chúng tôi giảm thiểu đáng kể độ trễ khởi động lạnh so với cơ chế mặc định. Hơn nữa, nghiên cứu đánh giá sự cân bằng giữa việc giảm độ trễ và lượng tài nguyên nhàn rỗi tiêu thụ, chứng minh rằng giải pháp này cung cấp một cách tiếp cận hiệu quả và cân bằng để tối ưu hóa hiệu suất serverless trong các môi trường lưu lượng truy cập biến động.
 \end{abstract}
 
-\section*{Acknowledgments}
-First and foremost, I would like to express my sincere gratitude to my supervisor, PhD. Huynh Van Dang, for their invaluable guidance, continuous support, and patience throughout the duration of this project. Their deep knowledge and insightful feedback were essential in helping me navigate the complexities of Kubernetes, Knative, and Machine Learning. I also want to extend my thanks to the professors and staff at the Faculty of Information Technology, University of Information Technology, for providing me with a strong academic foundation and an excellent learning environment over the past years. Finally, I am deeply grateful to my family and friends for their endless encouragement, understanding, and emotional support during the challenging phases of my research.
+\newpage
+
+\section*{Lời cảm ơn}
+Trước tiên, tôi xin gửi lời cảm ơn sâu sắc nhất đến giảng viên hướng dẫn của mình, Tiến sĩ Huỳnh Văn Đăng, vì sự hướng dẫn tận tình, sự hỗ trợ liên tục và sự kiên nhẫn của thầy trong suốt quá trình thực hiện dự án này. Kiến thức sâu rộng và những phản hồi sâu sắc của thầy là yếu tố then chốt giúp tôi vượt qua những khó khăn về Kubernetes, Knative và Học máy. Tôi cũng xin gửi lời cảm ơn đến quý thầy cô và cán bộ tại Khoa Công nghệ Thông tin, Trường Đại học Công nghệ Thông tin, vì đã trang bị cho tôi một nền tảng học thuật vững chắc và một môi trường học tập tuyệt vời trong những năm qua. Cuối cùng, tôi vô cùng biết ơn gia đình và bạn bè vì sự động viên không ngừng nghỉ, sự thấu hiểu và chỗ dựa tinh thần vững chắc trong những giai đoạn thử thách của quá trình nghiên cứu.
+
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\listoftables
+\newpage
 
 % --- MAIN CHAPTERS ---
 \input{chapters/ch1_overview}
@@ -50,6 +63,7 @@ First and foremost, I would like to express my sincere gratitude to my superviso
 \input{chapters/ch5_conclusion}
 
 % --- REFERENCES ---
+\nocite{*}
 \bibliographystyle{plain}
 \bibliography{references}
 

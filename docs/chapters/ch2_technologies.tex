@@ -1,81 +1,195 @@
-\section{Related Technologies}
-\subsection{Kubernetes}
-\subsubsection{Concept}
-Kubernetes (K8s) \cite{kubernetes} is an open-source platform used for automating the deployment, scaling, and management of containerized applications.
+\section{Cơ sở Lý thuyết và Công nghệ}
 
-\subsubsection{Characteristics/Capabilities}
-Describe core components: Pod, Deployment, Service, ReplicaSet, Horizontal Pod Autoscaler (HPA), etcd, control plane/worker node...
+\subsection{Hệ sinh thái Kubernetes}
+Kubernetes là một nền tảng mã nguồn mở mang tính cách mạng trong việc tự động hóa triển khai, mở rộng quy mô và quản lý các ứng dụng được đóng gói trong container (containerized applications). Kubernetes giải quyết bài toán phức tạp của việc phân phối tài nguyên trên một cụm (cluster) gồm nhiều máy chủ vật lý hoặc máy ảo, đảm bảo tính sẵn sàng cao (High Availability) và khả năng chịu lỗi (Fault Tolerance).
 
-\subsubsection{Function/Role in the Project}
-Kubernetes acts as the infrastructure layer for Knative to operate upon.
+Một trong những tính năng cốt lõi của Kubernetes là \textbf{Horizontal Pod Autoscaler (HPA)}. HPA tự động mở rộng hoặc thu hẹp số lượng bản sao (replicas) của một Deployment hoặc ReplicaSet dựa trên mức sử dụng CPU hoặc bộ nhớ (Memory) được báo cáo bởi Metrics Server. Công thức tính toán số lượng bản sao mong muốn của HPA được định nghĩa như sau:
 
-\subsubsection{Why Choose Kubernetes}
-Reasons for selection: industry standard (de-facto standard) for container orchestration, rich ecosystem, direct compatibility with Knative.
-
-\subsection{Knative}
-\subsubsection{Concept}
-Knative \cite{knative} is an open-source framework running on Kubernetes, providing the necessary components to build, deploy, and manage modern serverless applications.
-
-\subsubsection{Characteristics/Capabilities}
-Describe the main components of Knative Serving:
-\begin{itemize}
-    \item \textbf{Activator:} Receives requests when no pods are running (scale-to-zero), keeping requests in a queue until a pod is ready.
-    \item \textbf{Autoscaler (KPA - Knative Pod Autoscaler):} Determines the necessary number of pods based on current concurrency/RPS.
-    \item \textbf{Queue-Proxy:} A sidecar container that measures metrics and limits concurrency for each pod.
-    \item \textbf{Revision / Route / Service:} Resources (CRDs) that manage versions and route traffic.
-\end{itemize}
-
-\subsubsection{Function/Role in the Project}
-Knative is the main subject of intervention, extending the default autoscaling mechanism with the forecasting module.
-
-\subsubsection{Why Choose Knative}
-Briefly compare with other serverless platforms (OpenFaaS, Kubeless, AWS Lambda) and reasons for selection: open-source, runs on Kubernetes, customizable autoscaler via External Scaler (such as KEDA \cite{keda}) or Custom Metrics mechanism.
-
-\subsection{Prometheus}
-\subsubsection{Concept}
-Prometheus \cite{prometheus} is an open-source monitoring system and time-series database.
-
-\subsubsection{Characteristics/Capabilities}
-Pull-based scraping model, PromQL query language, native integration capabilities with Kubernetes and Knative.
-
-\subsubsection{Function/Role in the Project}
-Collecting historical data on request rate, concurrency, and pod count over time---acting as a training data source for the forecasting model.
-
-\subsubsection{Why Choose Prometheus}
-It is the default/recommended monitoring tool in the Kubernetes and Knative ecosystem, easy to integrate, with a large supporting community.
-
-\subsection{Machine Learning for Time-Series Forecasting}
-\subsubsection{Concept}
-Time-series forecasting is the problem of predicting future values of a variable based on previously observed values in the past.
-
-\subsubsection{LSTM Model}
-Long Short-Term Memory (LSTM) \cite{lstm, lstm_forecasting} is a variant of Recurrent Neural Networks designed to overcome the vanishing gradient problem when learning long-term dependencies in data sequences. It has proven highly effective in forecasting bursty and periodic traffic patterns commonly seen in serverless environments.
-
-The hidden state of an LSTM cell at time $t$ is updated via gates as follows:
 \begin{equation}
-    f_{t} = \sigma(W_{f} \cdot [h_{t-1}, x_{t}] + b_{f})
+    \text{desiredReplicas} = \left\lceil \text{currentReplicas} \times \frac{\text{currentMetricValue}}{\text{desiredMetricValue}} \right\rceil
+\end{equation}
+
+Mặc dù HPA rất mạnh mẽ, nhưng nó được thiết kế chủ yếu cho các ứng dụng kiến trúc Microservices truyền thống luôn luôn chạy (always-on). HPA không hỗ trợ khả năng thu hẹp số lượng bản sao về 0 (Scale-to-Zero) do đặc thù kiến trúc mạng và định tuyến của Kubernetes. Điều này đã mở đường cho sự ra đời của các nền tảng Serverless như Knative.
+
+\subsection{Nền tảng Knative}
+Knative là một khung ứng dụng (framework) được xây dựng trên Kubernetes để quản lý vòng đời của các workload Serverless. Knative bao gồm hai thành phần chính: Knative Serving và Knative Eventing. Trong phạm vi nghiên cứu của luận văn này, chúng tôi tập trung chủ yếu vào Knative Serving.
+
+\subsubsection{Knative Serving}
+Knative Serving định nghĩa một tập hợp các tài nguyên tùy chỉnh (Custom Resource Definitions - CRDs) trên Kubernetes để đơn giản hóa quá trình triển khai ứng dụng, tự động quản lý định tuyến lưu lượng mạng (Networking) và đặc biệt là khả năng tự động mở rộng theo yêu cầu (Request-driven Autoscaling). 
+
+Knative cho phép các dịch vụ thu hẹp số lượng Pod về 0 (Scale-to-Zero) khi không có yêu cầu nào được gửi đến trong một khoảng thời gian chờ (thường được gọi là scale-to-zero-grace-period). Tính năng này là cốt lõi của mô hình thanh toán "pay-as-you-go", giúp các doanh nghiệp tiết kiệm hàng triệu đô la chi phí máy chủ nhàn rỗi.
+
+\subsubsection{Knative Pod Autoscaler (KPA) và Activator}
+Thành phần chịu trách nhiệm ra quyết định mở rộng quy mô trong Knative Serving là \textbf{Knative Pod Autoscaler (KPA)}. Không giống như HPA của Kubernetes theo dõi CPU/RAM, KPA quyết định mở rộng dựa trên mức độ đồng thời (Concurrency) hoặc số lượng yêu cầu mỗi giây (Requests Per Second - RPS).
+
+Công thức cơ bản của KPA để tính toán số lượng Pod mục tiêu dựa trên lượng kết nối đồng thời:
+
+\begin{equation}
+    \text{Target Pods} = \frac{\text{Observed Concurrency}}{\text{Target Concurrency per Pod}}
+\end{equation}
+
+Để hiểu rõ hơn sự khác biệt giữa KPA và cơ chế mở rộng phổ thông của Kubernetes là HPA (Horizontal Pod Autoscaler), Bảng \ref{tab:kpa_vs_hpa} dưới đây tóm tắt các đặc tính cốt lõi của hai bộ điều khiển này.
+
+\begin{table}[h!]
+    \centering
+    \caption{So sánh đặc tính giữa Knative Pod Autoscaler (KPA) và Kubernetes HPA}
+    \label{tab:kpa_vs_hpa}
+    \begin{tabular}{|p{4.5cm}|p{5cm}|p{5cm}|}
+        \hline
+        \textbf{Đặc tính} & \textbf{Knative Pod Autoscaler (KPA)} & \textbf{Kubernetes HPA} \\
+        \hline
+        Chỉ số đo lường chính & Số lượng truy cập đồng thời (Concurrency) và RPS & Mức sử dụng CPU, RAM \\
+        \hline
+        Tính năng Scale-to-Zero & Hỗ trợ sẵn có (Thu hẹp về 0 Pod) & Không hỗ trợ (Tối thiểu 1 Pod) \\
+        \hline
+        Độ trễ phản hồi & Rất nhanh (phù hợp với Serverless) & Chậm (thường mất vài phút) \\
+        \hline
+        Cơ chế xử lý yêu cầu lúc 0 Pod & Giữ yêu cầu tại Activator & Báo lỗi hoặc rớt gói tin (Drop) \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{figure}[h!]
+    \centering
+    \begin{tikzpicture}[
+        node distance=2.5cm and 3cm,
+        box/.style={rectangle, draw=blue!60, fill=blue!5, very thick, minimum width=2.5cm, minimum height=1cm, align=center},
+        arrow/.style={->, >=stealth, thick},
+        label/.style={font=\small\itshape, text=black!70}
+    ]
+        % Nodes
+        \node[box, fill=green!5, draw=green!60] (ingress) {Knative\\Ingress Gateway};
+        \node[box, right=of ingress] (activator) {Activator\\(Buffer Request)};
+        \node[box, below=of activator, fill=orange!5, draw=orange!60, yshift=-1cm] (kpa) {Knative Pod\\Autoscaler (KPA)};
+        \node[box, right=of activator] (pod) {Application Pod\\(Cold Start)};
+        
+        % Arrows
+        \draw[arrow] (ingress) -- node[above, label] {1. HTTP Request} (activator);
+        \draw[arrow] (activator) -- node[left, label] {2. Wake-up Signal} (kpa);
+        \draw[arrow] (kpa) -| node[near start, below=0.2cm, label] {3. Scale 0 $\rightarrow$ 1} (pod);
+        \draw[arrow, dashed] (activator) -- node[above, label] {4. Forward Req} (pod);
+    \end{tikzpicture}
+    \caption{Cơ chế xử lý Khởi động lạnh (Cold-start) thông qua Activator trong Knative}
+    \label{fig:knative_coldstart}
+\end{figure}
+
+Khi một dịch vụ (Service) đã thu hẹp về 0 Pod, không có điểm cuối (Endpoint) nào để xử lý yêu cầu mạng. Lúc này, một thành phần đặc biệt có tên là \textbf{Activator} sẽ bước vào hoạt động.
+\begin{enumerate}
+    \item Bộ định tuyến (Ingress/Gateway) sẽ chuyển hướng yêu cầu mạng đến Activator thay vì đẩy thẳng vào Pod (do không có Pod nào tồn tại).
+    \item Activator sẽ lưu giữ (buffer) yêu cầu này và lập tức gửi tín hiệu đánh thức (Wake-up signal) đến KPA.
+    \item KPA kích hoạt việc tạo ra ít nhất một Pod mới (Quá trình khởi động lạnh - Cold-start).
+    \item Khi Pod mới báo cáo trạng thái Sẵn sàng (Ready), Activator sẽ giải phóng các yêu cầu đang bị giữ và chuyển tiếp (forward) chúng đến Pod mới.
+\end{enumerate}
+
+Thời gian từ lúc Activator nhận yêu cầu đầu tiên cho đến khi Pod mới sẵn sàng phục vụ chính là \textbf{Độ trễ khởi động lạnh (Cold-start Latency)}.
+
+\subsection{Bài toán Dự báo Chuỗi thời gian (Time-series Forecasting)}
+Để giải quyết bài toán khởi động lạnh, chúng ta cần chuyển đổi mô hình mở rộng quy mô từ dạng phản ứng (Reactive) sang dạng dự đoán (Predictive). Điều này đòi hỏi hệ thống phải có khả năng dự báo được khối lượng lưu lượng truy cập mạng trong tương lai dựa trên lịch sử trong quá khứ. Đây là một bài toán kinh điển trong lĩnh vực phân tích dữ liệu được gọi là Dự báo chuỗi thời gian.
+
+Chuỗi thời gian là một dãy các điểm dữ liệu được thu thập tại các khoảng thời gian liên tiếp bằng nhau (ví dụ: số lượng yêu cầu mỗi giây, thống kê tài nguyên hệ thống mỗi phút). Một mô hình dự báo chuỗi thời gian sử dụng hàm $F$ để ước tính giá trị trong tương lai $y_{t+1}$ dựa trên một cửa sổ quan sát các giá trị quá khứ độ dài $w$:
+
+\begin{equation}
+    \hat{y}_{t+1} = F(y_t, y_{t-1}, ..., y_{t-w+1})
+\end{equation}
+
+Mặc dù các phương pháp thống kê truyền thống như ARIMA (Autoregressive Integrated Moving Average) đã được sử dụng rộng rãi, nhưng chúng thường gặp khó khăn trong việc nắm bắt các mối quan hệ phi tuyến tính phức tạp và các mẫu hình nhiễu (noise) trong môi trường điện toán đám mây thay đổi liên tục. Do đó, Học máy sâu (Deep Learning) đã trở thành một công cụ mạnh mẽ để thay thế.
+
+\subsection{Mạng nơ-ron Bộ nhớ Ngắn-Dài hạn (Long Short-Term Memory - LSTM)}
+Mạng nơ-ron hồi quy (Recurrent Neural Network - RNN) là một kiến trúc được thiết kế riêng cho dữ liệu chuỗi, nơi đầu ra của bước trước đó được sử dụng làm đầu vào cho bước tiếp theo. Tuy nhiên, RNN truyền thống gặp phải vấn đề triệt tiêu đạo hàm (Vanishing Gradient Problem) khi chuỗi dữ liệu quá dài, khiến mô hình "quên" mất các thông tin quan trọng trong quá khứ xa.
+
+Để khắc phục nhược điểm này, Hochreiter và Schmidhuber đã đề xuất một biến thể tiên tiến của RNN vào năm 1997 gọi là \textbf{Long Short-Term Memory (LSTM)}. Khác với RNN chỉ có một lớp tanh đơn giản, mỗi khối bộ nhớ (Memory Cell) của LSTM chứa các cấu trúc phức tạp gọi là các "Cổng" (Gates), cho phép kiểm soát luồng thông tin một cách có chọn lọc.
+
+\begin{figure}[h!]
+    \centering
+    \begin{tikzpicture}[
+        % Define styles
+        rect/.style={rectangle, draw, thick, minimum width=1.2cm, minimum height=0.8cm, fill=white},
+        circ/.style={circle, draw, thick, minimum size=0.6cm, fill=yellow!20, inner sep=1pt},
+        arrow/.style={->, >=stealth, thick},
+        line/.style={-, thick},
+        scale=0.9, transform shape
+    ]
+        % Draw the main LSTM cell background
+        \draw[rounded corners, fill=gray!10, draw=gray!50, very thick] (-2.5, -3.5) rectangle (8.5, 3.5);
+        \node at (3, 3) {\textbf{Khối Tế bào LSTM (LSTM Cell)}};
+        
+        % Draw elements inside
+        \node[rect, fill=red!20] (forget) at (0, -1) {$\sigma$};
+        \node[rect, fill=green!20] (input_sig) at (2, -1) {$\sigma$};
+        \node[rect, fill=green!20] (input_tanh) at (4, -1) {$\tanh$};
+        \node[rect, fill=blue!20] (output) at (6, -1) {$\sigma$};
+        
+        % Multiplication and addition operations
+        \node[circ] (mul1) at (0, 1.5) {$\times$};
+        \node[circ] (add1) at (3, 1.5) {$+$};
+        \node[circ] (mul2) at (3, 0) {$\times$};
+        \node[circ] (tanh2) at (6, 1.5) {$\tanh$};
+        \node[circ] (mul3) at (6, 0.5) {$\times$};
+        
+        % Input Bus (Straight and clean)
+        \coordinate (join) at (-1.5, -2);
+        \draw[arrow] (-3.5, -2.5) -- node[above] {$x_t$} (-1.5, -2.5) -- (join);
+        \draw[arrow] (-3.5, -1.5) -- node[above] {$h_{t-1}$} (-1.5, -1.5) -- (join);
+        \draw[line] (join) -- (6, -2); % Horizontal bus
+        
+        \draw[arrow] (0, -2) -- (forget.south);
+        \draw[arrow] (2, -2) -- (input_sig.south);
+        \draw[arrow] (4, -2) -- (input_tanh.south);
+        \draw[arrow] (6, -2) -- (output.south);
+        
+        % Cell state line
+        \draw[arrow] (-3.5, 1.5) -- node[above] {$C_{t-1}$} (mul1);
+        \draw[arrow] (mul1) -- (add1);
+        \draw[arrow] (add1) -- (tanh2);
+        \draw[arrow] (tanh2) -- node[above] {$C_t$} (9.5, 1.5);
+        
+        % Internal connections
+        \draw[arrow] (forget) -- (mul1);
+        \draw[arrow] (input_sig) -- (mul2);
+        \draw[arrow] (input_tanh) -- (mul2);
+        \draw[arrow] (mul2) -- (add1);
+        \draw[arrow] (tanh2) -- (mul3);
+        \draw[arrow] (output) -- (mul3);
+        \draw[arrow] (mul3) -- node[above] {$h_t$} (9.5, 0.5);
+        \draw[arrow] (mul3) -- (7.5, 0.5) |- (7.5, -2.5) -- (9.5, -2.5) node[above] {$h_t$};
+    \end{tikzpicture}
+    \caption{Sơ đồ kiến trúc bên trong của một khối Tế bào LSTM}
+    \label{fig:lstm_cell}
+\end{figure}
+
+Một khối LSTM chuẩn bao gồm ba cổng chính: Cổng quên (Forget Gate), Cổng đầu vào (Input Gate), và Cổng đầu ra (Output Gate). Cấu trúc toán học của các cổng này được biểu diễn như sau:
+
+\subsubsection{Cổng Quên (Forget Gate)}
+Cổng này quyết định xem lượng thông tin nào từ trạng thái tế bào trước đó $C_{t-1}$ sẽ bị "quên" đi. Hàm kích hoạt Sigmoid được sử dụng để nén giá trị đầu ra trong khoảng từ 0 (quên hoàn toàn) đến 1 (giữ lại hoàn toàn).
+
+\begin{equation}
+    f_t = \sigma(W_f \cdot [h_{t-1}, x_t] + b_f)
+\end{equation}
+Trong đó, $W_f$ là ma trận trọng số, $h_{t-1}$ là trạng thái ẩn trước đó, $x_t$ là đầu vào hiện tại, và $b_f$ là độ lệch (bias).
+
+\subsubsection{Cổng Đầu vào (Input Gate)}
+Cổng này quyết định lượng thông tin mới nào sẽ được ghi vào trạng thái tế bào. Quá trình này gồm hai bước: Sigmoid quyết định các giá trị cần cập nhật ($i_t$), và hàm Tanh tạo ra một véc-tơ giá trị ứng viên mới ($\tilde{C}_t$).
+
+\begin{equation}
+    i_t = \sigma(W_i \cdot [h_{t-1}, x_t] + b_i)
 \end{equation}
 \begin{equation}
-    i_{t} = \sigma(W_{i} \cdot [h_{t-1}, x_{t}] + b_{i})
+    \tilde{C}_t = \tanh(W_C \cdot [h_{t-1}, x_t] + b_C)
+\end{equation}
+
+Trạng thái tế bào mới $C_t$ sau đó được tính toán bằng cách loại bỏ các thông tin cũ (nhân với $f_t$) và cộng thêm các thông tin mới:
+\begin{equation}
+    C_t = f_t * C_{t-1} + i_t * \tilde{C}_t
+\end{equation}
+
+\subsubsection{Cổng Đầu ra (Output Gate)}
+Cổng này quyết định thông tin nào sẽ được xuất ra ở trạng thái ẩn tiếp theo $h_t$.
+
+\begin{equation}
+    o_t = \sigma(W_o \cdot [h_{t-1}, x_t] + b_o)
 \end{equation}
 \begin{equation}
-    h_{t} = o_{t} \odot \tanh(C_{t})
+    h_t = o_t * \tanh(C_t)
 \end{equation}
-where $f_{t}$ is the forget gate, $i_{t}$ is the input gate, and $h_{t}$ is the output hidden state.
 
-\subsubsection{Why Choose LSTM}
-Reason: suitable for workload data with cyclical patterns (hourly/daily/weekly), moderate computational complexity compared to Transformer architectures, easy to deploy for real-time inference with low latency.
-
-\subsection{Methodology/Algorithm: Predictive Pre-warming}
-\subsubsection{Concept}
-Predictive Pre-warming is a proactive strategy to maintain a minimum number of pods in a ``warm'' state based on workload forecasting results, rather than just scaling reactively based on current traffic like the default KPA mechanism.
-
-\subsubsection{Formula for determining the number of pods to pre-warm}
-The minimum number of pods to maintain at time $t+\Delta t$ can be estimated according to the formula:
-\begin{equation}
-    N_{\text{pod}}(t+\Delta t) = \left\lceil \frac{\hat{Y}(t+\Delta t)}{C_{\text{target}}} \right\rceil
-\end{equation}
-where $\hat{Y}(t+\Delta t)$ is the workload value (concurrency/RPS) predicted by the LSTM model at time $t+\Delta t$, and $C_{\text{target}}$ is the target concurrency threshold per pod (a configuration parameter in Knative). Details on how to integrate formula into the controller are presented in Section 3.5.
-
-\subsubsection{(Optional) Deep Reinforcement Learning for Coordination}
-Introduce the concept of Reinforcement Learning (RL) and its potential role in learning optimal scaling policies. RL agents can effectively balance the latency reduction and resource costs by continuously adapting to traffic changes \cite{suresh2020serverless}. The feasibility of this content is evaluated in Section 4.5.
+Nhờ khả năng duy trì trạng thái dài hạn và không bị giới hạn bởi vấn đề triệt tiêu đạo hàm, LSTM trở thành mô hình hoàn hảo để phân tích và dự báo chuỗi thời gian của lượng truy cập mạng. Việc dự đoán được đỉnh tải (traffic peak) trước vài chục giây cho phép Controller của Kubernetes có đủ thời gian để kéo Image và khởi động Container, từ đó "làm ấm" cụm Serverless một cách hoàn hảo.

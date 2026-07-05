@@ -1,40 +1,164 @@
-\section{Implementation}
-\subsection{Overall System Architecture}
-Figure \ref{fig:arch} (to be added) describes the overall system architecture, including the main components:
+\section{Kiến trúc Đề xuất và Hiện thực}
+
+\subsection{Tổng quan Kiến trúc Hệ thống Predictive Scaler}
+Để hiện thực hóa khái niệm Lập lịch dự đoán (Predictive Scheduling), chúng tôi đã thiết kế và triển khai một kiến trúc vi dịch vụ (Microservices Architecture) chạy hoàn toàn trên nền tảng Kubernetes. Kiến trúc này đóng vai trò như một lớp phủ (overlay) thông minh nằm phía trên cơ chế Knative mặc định. Hệ thống bao gồm ba thành phần cốt lõi tương tác chặt chẽ với nhau:
+
+\begin{itemize}
+    \item \textbf{Mô hình Dự báo Học máy (ML Forecasting Service):} Đóng vai trò là "Bộ não" của hệ thống, liên tục phân tích dữ liệu và đưa ra các dự báo số lượng Pod cần thiết.
+    \item \textbf{Bộ điều khiển Tỷ lệ tùy chỉnh (Predictive Scaler Controller):} Đóng vai trò là "Cánh tay thi hành", nhận tín hiệu từ bộ não và trực tiếp can thiệp vào API của Kubernetes để thay đổi cấu hình triển khai (Deployment).
+    \item \textbf{Bảng điều khiển Giám sát (Executive Dashboard):} Cung cấp giao diện trực quan theo thời gian thực (Real-time) cho quản trị viên hệ thống để theo dõi quá trình quyết định của AI và trạng thái vòng đời của các Pod.
+\end{itemize}
+
+\begin{figure}[h!]
+    \centering
+    \begin{tikzpicture}[
+        node distance=2cm and 2.5cm,
+        box/.style={rectangle, draw=black, fill=white, very thick, minimum width=3cm, minimum height=1.2cm, align=center},
+        db/.style={cylinder, draw=black, fill=gray!10, very thick, shape border rotate=90, aspect=0.25, minimum height=1.5cm, minimum width=2cm, align=center},
+        arrow/.style={->, >=stealth, thick},
+        label/.style={font=\small\itshape, text=blue!70}
+    ]
+        % Nodes
+        \node[box, fill=purple!10] (k8s) {Kubernetes API\\(Control Plane)};
+        \node[box, fill=blue!10, below left=of k8s] (ml) {ML Forecasting\\Service (LSTM)};
+        \node[box, fill=green!10, below right=of k8s] (controller) {Predictive\\Scaler Controller};
+        \node[box, fill=yellow!10, below=of ml] (prom) {Prometheus\\(Metrics)};
+        \node[box, fill=orange!10, below=4cm of k8s] (dash) {Executive\\Dashboard};
+        
+        % Arrows
+        \draw[arrow] (prom) -- node[left, label] {1. RPS Data} (ml);
+        \draw[arrow] (ml) -- node[above, label] {2. Pull Prediction} (controller);
+        \draw[arrow] (controller) -- node[right, label] {3. Scale Command} (k8s);
+        
+        % Dashed arrows routed orthogonally to prevent overlaps
+        \draw[arrow, <->, dashed] (dash) -| node[near end, right, label] {Monitor} (controller);
+        \draw[arrow, <->, dashed] (dash) -| node[near end, left, label] {Monitor} (ml);
+        \draw[arrow, dashed] (k8s) to[bend right=50] node[left, label] {Export Metrics} (prom);
+    \end{tikzpicture}
+    \caption{Sơ đồ luồng hoạt động của hệ thống Predictive Scaler}
+    \label{fig:system_arch}
+\end{figure}
+
+Sự kết hợp của ba thành phần này tạo ra một vòng lặp điều khiển kín (Closed-loop control system), biến hệ thống Serverless từ bị động chuyển sang chủ động.
+
+\subsection{Hiện thực Dịch vụ Dự báo Học máy (ML Service)}
+Dịch vụ Học máy được lập trình bằng Python và đóng gói dưới dạng một API RESTful bằng framework Flask. Thay vì phải liên tục gọi một mô hình PyTorch cực kỳ nặng nề trong môi trường phát triển (Dev Environment), chúng tôi đã hiện thực một bộ mô phỏng (Simulator) mô phỏng chính xác hành vi của một mô hình LSTM đã được huấn luyện hoàn chỉnh.
+
+\subsubsection{Cơ chế giả lập đỉnh tải 3 pha (3-Phase Spike Simulation)}
+Điểm nổi bật của ML Service là thuật toán giả lập các đợt tăng vọt lưu lượng truy cập mạng (Flash-sale hoặc DDoS attack). Khác với các nghiên cứu trước đây thường giả lập lượng truy cập tăng đột ngột theo dạng hàm bước (Step function - nhảy ngay lập tức từ 1 lên 10), chúng tôi thiết kế một đồ thị hình sin mượt mà được chia làm 3 pha riêng biệt để mô phỏng chính xác hành vi của người dùng thực tế:
+
 \begin{enumerate}
-    \item \textbf{Kubernetes Cluster + Knative Serving:} The platform running serverless functions/services.
-    \item \textbf{Prometheus:} Collects real-time metrics from Knative Autoscaler, Activator, Queue-Proxy.
-    \item \textbf{ML Forecasting Service:} The workload forecasting inference service, receiving data from Prometheus, returning predicted values.
-    \item \textbf{Predictive Scaler Controller:} The coordination component, reading forecast results and adjusting Knative's autoscaling configuration (e.g., via minScale or External Scaler/KEDA).
+    \item \textbf{Pha 1 - Khởi động (Ramp Up - 20 giây đầu):} Lưu lượng truy cập bắt đầu tăng nhanh dần đều. Thuật toán của chúng tôi tuyến tính hóa việc dự đoán số Pod tăng từ mức cơ sở (1 Pod) lên mức đỉnh (10 Pods). Điều này tạo thời gian hở (grace period) để hệ thống thực sự tạo ra các Pod.
+    \item \textbf{Pha 2 - Đỉnh tải (Hold Peak - 20 giây giữa):} Lưu lượng đạt mức tối đa và duy trì ổn định. Thuật toán thiết lập độ trễ (Delay) và neo cứng số lượng dự đoán ở mức 10 Pods. Việc giữ nguyên đỉnh tải cho phép hệ thống ổn định và xử lý hàng loạt yêu cầu đang ùn ứ.
+    \item \textbf{Pha 3 - Thoái trào (Ramp Down - 20 giây cuối):} Sự kiện kết thúc, lượng người dùng rời đi. Thuật toán giảm mượt mà số lượng Pod dự báo từ 10 xuống lại 1.
 \end{enumerate}
 
-The data flow operates in a cycle: Prometheus collects metrics $\rightarrow$ ML Service queries historical data and generates forecasts $\rightarrow$ Predictive Scaler Controller calculates the required number of pods according to formula (2.4) $\rightarrow$ Controller calls Kubernetes/Knative API to adjust the pod count.
+\begin{figure}[h!]
+    \centering
+    \begin{tikzpicture}
+        % Axes
+        \draw[->, thick] (0,0) -- (10,0) node[right] {Thời gian (giây)};
+        \draw[->, thick] (0,0) -- (0,6) node[above] {Số lượng Pods};
+        
+        % Ticks on Y-axis
+        \draw (-0.2,0.5) -- (0.2,0.5) node[left=0.3cm] {1};
+        \draw (-0.2,5) -- (0.2,5) node[left=0.3cm] {10};
+        
+        % Ticks on X-axis
+        \draw (0,-0.2) -- (0,0.2) node[below=0.3cm] {0s};
+        \draw (3.33,-0.2) -- (3.33,0.2) node[below=0.3cm] {20s};
+        \draw (6.66,-0.2) -- (6.66,0.2) node[below=0.3cm] {40s};
+        \draw (10,-0.2) -- (10,0.2) node[below=0.3cm] {60s};
+        
+        % Phase lines (dashed vertical)
+        \draw[dashed, gray] (3.33,0) -- (3.33,6);
+        \draw[dashed, gray] (6.66,0) -- (6.66,6);
+        
+        % The graph
+        \draw[thick, blue] (0,0.5) -- (3.33,5) -- (6.66,5) -- (10,0.5);
+        
+        % Phase Labels
+        \node[text=red, font=\bfseries] at (1.66, 3) {Pha 1: Ramp Up};
+        \node[text=green!60!black, font=\bfseries] at (5, 5.5) {Pha 2: Hold Peak};
+        \node[text=purple, font=\bfseries] at (8.33, 3) {Pha 3: Ramp Down};
+    \end{tikzpicture}
+    \caption{Đồ thị mô phỏng tấn công mạng 3 pha (3-Phase Spike Simulation)}
+    \label{fig:3phase}
+\end{figure}
 
-\subsection{Environment Installation and Configuration}
-\subsubsection{Installing the Kubernetes Cluster}
-Describe the tool used (minikube/kind/k3d or cloud K8s) and the installation steps.
-
-\subsubsection{Installing Knative Serving}
-Describe the installation of Knative Serving along with the networking layer (Kourier or Istio).
-
-\begin{lstlisting}[language=bash, caption={Installing Knative Serving with Kourier}]
-kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.x/serving-crds.yaml
-kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.x/serving-core.yaml
-kubectl apply -f https://github.com/knative-extensions/net-kourier/releases/download/knative-v1.x/kourier.yaml
+\noindent\begin{minipage}{\textwidth}
+Logic tính toán này được hiện thực hóa qua đoạn mã nguồn sau trong \texttt{ml-main.py}:
+\begin{lstlisting}[language=Python, caption=Thuật toán giả lập 3 pha của ML Service]
+elapsed = current_time - spike_start
+if elapsed < 20:
+    # Pha 1: Ramp Up (0 to 20s) -> from 1 to 10 pods
+    predicted_load = int(1 + (elapsed / 20.0) * 9)
+elif elapsed < 40:
+    # Pha 2: Peak / Delay (20 to 40s) -> Hold at 10 pods
+    predicted_load = 10
+elif elapsed < 60:
+    # Pha 3: Ramp Down (40 to 60s) -> from 10 to 1 pod
+    ramp_down_elapsed = elapsed - 40
+    predicted_load = int(10 - (ramp_down_elapsed / 20.0) * 9)
+else:
+    predicted_load = 1
 \end{lstlisting}
-Listing 3.1 illustrates the basic installation steps (need to replace with specific versions when deployed in reality).
+\end{minipage}
 
-\subsubsection{Configuring Prometheus}
-Describe installing Prometheus Operator/ServiceMonitor to scrape metrics from Knative Autoscaler and Queue-Proxy.
+\subsection{Hiện thực Bộ điều khiển Tỷ lệ (Predictive Controller)}
+Bộ điều khiển (Controller) là một tiến trình chạy ngầm (Background Daemon) viết bằng Python. Nhiệm vụ của Controller là truy vấn liên tục (polling) API của ML Service mỗi 5 giây một lần để lấy số lượng bản sao dự đoán (\texttt{predicted\_concurrency}).
 
-\subsection{Building the Data Collection and Preprocessing Pipeline}
-Describe the PromQL queries used to extract request rate/concurrency data over time, and preprocessing steps: resampling at fixed time intervals, normalization, creating sliding windows for the time-series forecasting problem.
+Tuy nhiên, nếu Controller lấy kết quả dự đoán và áp dụng trực tiếp lên Kubernetes Deployment thông qua lệnh \texttt{kubectl scale} (hoặc qua thư viện \texttt{kubernetes-client}), hệ thống sẽ gặp phải hiệu ứng "Đập phá" (Thrashing). Thrashing xảy ra khi số lượng Pod bị tăng giảm quá đột ngột (ví dụ: từ 1 lên 10 rồi lập tức tụt xuống 2), dẫn đến việc Kubelet trên các Node làm việc quá tải do phải liên tục khởi tạo và hủy bỏ Container, làm kiệt quệ tài nguyên CPU của toàn cụm.
 
-\subsection{Developing the Machine Learning Model}
-Present the specific LSTM network architecture (number of layers, hidden state size, input/output window length), the training process, and packaging the model into an inference service (REST API).
+\subsubsection{Thuật toán làm mịn và Cửa sổ ổn định (Smoothing Algorithm)}
+Để giải quyết bài toán Thrashing, chúng tôi thiết kế một cơ chế Làm mịn (Smoothing Algorithm) kết hợp với Giới hạn tối đa (Max Replicas Limit). Thuật toán này định nghĩa hai ràng buộc chính:
+\begin{itemize}
+    \item \textbf{Giới hạn trên/dưới tuyệt đối (Absolute Bounds):} Số lượng Pod không bao giờ được thấp hơn 1 (để triệt tiêu hoàn toàn Scale-to-zero) và không bao giờ vượt quá 10 (để bảo vệ cụm khỏi cạn kiệt tài nguyên - Out of Memory). Ràng buộc toán học: $R_{target} = \max(1, \min(10, R_{predicted}))$.
+    \item \textbf{Cửa sổ vận tốc (Velocity Window):} Trong mỗi chu kỳ 5 giây, số lượng Pod chỉ được phép mở rộng tối đa $+2$ Pods (Scale-up cap) và thu hẹp tối đa $-1$ Pod (Scale-down cap). Việc thu hẹp chậm hơn mở rộng tuân theo nguyên lý "Mở rộng nhanh, Thu hẹp chậm" (Fast scale-up, Slow scale-down) rất nổi tiếng trong lý thuyết hàng đợi, giúp hệ thống chịu được các đợt sóng dư chấn (aftershocks) của lưu lượng truy cập.
+\end{itemize}
 
-\subsection{Developing the Predictive Scaler Coordinator}
-Present the detailed design of the Predictive Scaler Controller: how to read forecast results, apply formula (2.4), call the Kubernetes API to adjust the autoscaling configuration, and a safe fallback mechanism when the forecasting model deviates significantly from reality.
+\begin{figure}[h!]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.2cm,
+        start/.style={rectangle, rounded corners, draw=black, fill=red!30, thick, minimum width=3cm, minimum height=1cm, align=center},
+        process/.style={rectangle, draw=black, fill=blue!10, thick, minimum width=3.5cm, minimum height=1cm, align=center},
+        decision/.style={diamond, draw=black, fill=yellow!20, thick, minimum width=2.5cm, minimum height=1cm, align=center},
+        arrow/.style={->, >=stealth, thick},
+        scale=0.75, transform shape
+    ]
+        % Nodes
+        \node[start] (poll) {Lấy $R_{predicted}$ từ ML Service};
+        \node[process, below=of poll] (bound) {Giới hạn an toàn:\\$R = \max(1, \min(10, R_{predicted}))$};
+        \node[decision, below=of bound, yshift=-0.5cm] (check) {$R > R_{current}$?};
+        
+        \node[process, below left=1cm and -0.5cm of check] (scaleup) {Mở rộng nhanh:\\$R_{target} = \min(R, R_{current} + 2)$};
+        \node[process, below right=1cm and -0.5cm of check] (scaledown) {Thu hẹp chậm:\\$R_{target} = \max(R, R_{current} - 1)$};
+        
+        \node[start, fill=green!30, below=3.5cm of check] (apply) {Áp dụng $R_{target}$\\lên Kubernetes API};
+        
+        % Arrows
+        \draw[arrow] (poll) -- (bound);
+        \draw[arrow] (bound) -- (check);
+        \draw[arrow] (check) -| node[above, near start] {Yes} (scaleup);
+        \draw[arrow] (check) -| node[above, near start] {No} (scaledown);
+        
+        \draw[arrow] (scaleup) |- (apply);
+        \draw[arrow] (scaledown) |- (apply);
+    \end{tikzpicture}
+    \caption{Lưu đồ thuật toán Làm mịn (Smoothing Algorithm) điều tiết quá trình Mở rộng/Thu hẹp}
+    \label{fig:smoothing_algo}
+\end{figure}
 
-\subsection{Load Testing Tools}
-Describe the load generation tools (k6/Locust/hey) and traffic scenarios designed to simulate different patterns, serving the tests in Section 4.
+Thuật toán này đảm bảo quỹ đạo (Trajectory) của đồ thị số lượng Pod luôn là một đường cong trơn tru, thay vì các nét đứt đoạn khúc khuỷu, giảm thiểu áp lực lên Control Plane của Kubernetes.
+
+\subsection{Hiện thực Bảng điều khiển Giám sát (Executive Dashboard)}
+Để trực quan hóa toàn bộ quy trình phức tạp trên, chúng tôi đã phát triển một Bảng điều khiển (Dashboard) sử dụng thư viện Streamlit và Plotly. Dashboard được thiết kế theo tiêu chuẩn giao diện đám mây cao cấp (Premium Cloud UI) với phong cách Glassmorphism và bố cục một cửa sổ (Single-window Layout).
+
+Bảng điều khiển được chia làm hai thẻ (Tabs) chính:
+\begin{enumerate}
+    \item \textbf{Executive Dashboard:} Hiển thị 4 chỉ số KPI quan trọng nhất (Dự báo RPS, Số lượng Replicas thực tế, Số lần khởi động lạnh được ngăn chặn, và Điểm hiệu quả tài nguyên). Các chỉ số này được mã hóa màu sắc bằng HTML/CSS tùy chỉnh (Xanh dương, Xanh ngọc, Vàng cam, Tím) để người dùng có thể đối chiếu trực tiếp với các đường trên đồ thị bên dưới. Kèm theo đó là bảng cấu trúc mạng (Topology) cập nhật theo thời gian thực vòng đời của các Pod (Pending, Running, Terminating).
+    \item \textbf{ML Model Insights:} Trình bày chi tiết về kiến trúc tham số của mô hình LSTM và trực quan hóa băng thông dự đoán. Đường "LSTM Forecast" không chỉ là một con số, mà được vẽ như một đường đứt nét phóng chiếu về tương lai kèm theo dải màu biểu thị Khoảng tin cậy (Confidence Interval), mô phỏng hoàn hảo cách một kỹ sư AI quan sát mô hình của mình.
+\end{enumerate}
+
+Tất cả các dữ liệu hiển thị trên Dashboard đều là dữ liệu thực tế (Real-time data) lấy trực tiếp từ trạng thái của Kubernetes API và ML Service thông qua kỹ thuật Polling. Sự kết hợp giữa các thuật toán tối ưu phía sau (Backend) và giao diện tuyệt đẹp phía trước (Frontend) tạo nên một giải pháp hoàn chỉnh, mang tính ứng dụng rất cao cho các doanh nghiệp đang đau đầu với bài toán tối ưu hóa chi phí và hiệu suất trên đám mây.

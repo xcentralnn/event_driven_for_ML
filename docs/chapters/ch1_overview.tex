@@ -1,29 +1,49 @@
-\section{Overview}
-\subsection{Problem Statement}
-Serverless computing architecture is increasingly being widely adopted due to its ability to automatically scale resources (autoscaling) and its pay-as-you-go billing model based on actual usage. However, one of the biggest limitations of serverless is the cold-start phenomenon \cite{shahrad2020serverless}: when there is no ``warm'' instance (container/pod) available to process, the system must initialize a new container from scratch, causing significant latency for the first request.
+\section{Tổng quan}
 
-Knative \cite{knative} is an open-source serverless platform running on Kubernetes \cite{kubernetes}, utilizing the Knative Pod Autoscaler (KPA) mechanism to automatically scale the number of pods based on metrics like current concurrency or requests-per-second. This mechanism is reactive---it only scales up when actual traffic arrives---so it cannot completely eliminate cold-start latency, especially in scenarios with sudden traffic fluctuations or for functions with long container initialization times.
+\subsection{Giới thiệu chung về Điện toán Đám mây và Serverless Computing}
+Trong thập kỷ qua, ngành công nghiệp phần mềm đã chứng kiến sự dịch chuyển mạnh mẽ từ các kiến trúc nguyên khối (Monolithic) sang các hệ thống phân tán và vi dịch vụ (Microservices). Sự bùng nổ của Điện toán đám mây (Cloud Computing) đã cung cấp hạ tầng linh hoạt giúp các tổ chức triển khai ứng dụng một cách nhanh chóng. Điểm nhấn lớn nhất trong quá trình tiến hóa này chính là sự xuất hiện của mô hình Điện toán phi máy chủ (Serverless Computing). 
 
-\subsection{Objectives}
-The project aims at the following specific objectives:
+Serverless Computing cho phép các nhà phát triển tập trung hoàn toàn vào việc viết mã nguồn (code) mà không cần phải quan tâm đến việc quản lý, cấp phát hay bảo trì máy chủ vật lý hay máy ảo bên dưới. Một trong những lợi ích cốt lõi của Serverless là mô hình thanh toán "pay-as-you-go" (chỉ trả tiền cho những tài nguyên thực sự được sử dụng tính theo phần nghìn giây) và khả năng "Scale-to-Zero" (thu gọn quy mô về không). Khi không có bất kỳ lưu lượng truy cập (traffic) nào, hệ thống sẽ tự động tắt toàn bộ các phiên bản (instances) của ứng dụng để tiết kiệm tối đa chi phí. Tuy nhiên, chính khả năng đột phá này lại mang đến một nhược điểm kỹ thuật nghiêm trọng: Bài toán khởi động lạnh.
+
+\subsection{Bài toán Khởi động lạnh (Cold-start Problem) và hệ lụy}
+Khởi động lạnh (Cold-start) xảy ra khi một yêu cầu (request) mạng được gửi tới một ứng dụng Serverless đang ở trạng thái ngủ (Scale-to-Zero, tức là hiện không có bất kỳ container hay pod nào đang chạy). Để phục vụ yêu cầu này, hệ thống đám mây bắt buộc phải thực hiện chuỗi các thao tác:
 \begin{enumerate}
-    \item Build a workload forecasting system based on historical data collected from Prometheus \cite{prometheus} to proactively predict near-future traffic trends.
-    \item Design and implement a Predictive Pre-warming strategy---keeping an appropriate number of pods ``warm'' before actual traffic increases, instead of waiting and reacting after the traffic has arrived.
-    \item Integrate the forecasting module (using a Machine Learning model built with PyTorch \cite{pytorch}) into Knative's autoscaling pipeline.
-    \item Quantitatively evaluate the effectiveness of the proposed solution compared to the default Knative Pod Autoscaler mechanism in two aspects: (i) cold-start latency and (ii) idle resource cost.
+    \item Cấp phát tài nguyên tính toán (CPU, Memory).
+    \item Kéo (pull) container image từ kho lưu trữ (Registry).
+    \item Khởi tạo môi trường mạng (Networking, IP allocation).
+    \item Khởi động ứng dụng bên trong container (phụ thuộc nhiều vào framework, ví dụ: khởi động JVM của Java hoặc load thư viện của Python).
 \end{enumerate}
 
-\subsection{Scope of the Project}
-The project focuses on testing within a small/medium-scale Kubernetes cluster (single-node or multi-node cluster), using simple HTTP functions/services as test subjects. The project does not delve into security issues, multi-tenancy, or optimizations for stateful workloads.
+Toàn bộ quá trình này thường mất từ vài giây đến hàng chục giây tùy thuộc vào độ phức tạp của ứng dụng. Yêu cầu đầu tiên của người dùng sẽ bị treo (blocked) cho đến khi quá trình khởi động hoàn tất. Trong các hệ thống thời gian thực (real-time systems) hoặc các hệ thống giao dịch tài chính yêu cầu độ trễ cực thấp (Ultra-low latency), sự chậm trễ này là hoàn toàn không thể chấp nhận được, dẫn đến trải nghiệm người dùng tồi tệ, giảm tỷ lệ chuyển đổi (conversion rate) và vi phạm các cam kết chất lượng dịch vụ (SLA - Service Level Agreement).
 
-\subsection{Summary of Implementation}
-To achieve the above objectives, the project's implementation includes:
+\subsection{Nền tảng Knative và Hạn chế của Cơ chế mở rộng phản ứng}
+Knative là một nền tảng mã nguồn mở được xây dựng trên nền tảng Kubernetes nhằm mang lại trải nghiệm Serverless cho các cụm container. Knative Serving là thành phần chịu trách nhiệm quản lý việc triển khai và tự động mở rộng quy mô (auto-scaling). Cơ chế mở rộng mặc định của Knative là Knative Pod Autoscaler (KPA), hoạt động dựa trên phương pháp mở rộng phản ứng (Reactive Autoscaling).
+
+Phương pháp phản ứng có nghĩa là KPA chỉ bắt đầu ra quyết định mở rộng số lượng Pod (từ 0 lên 1, hoặc từ 1 lên N) \textit{sau khi} nó quan sát thấy lưu lượng truy cập thực tế đã vượt qua một ngưỡng (threshold) nhất định. Dù KPA hoạt động rất tốt trong việc phản ứng với tải, nhưng do tính chất "chờ có request mới scale", hệ thống chắc chắn sẽ bị độ trễ khởi động lạnh mỗi khi lưu lượng truy cập đột ngột tăng vọt (traffic spike) từ trạng thái nhàn rỗi. 
+
+\subsection{Giải pháp Đề xuất: Lập lịch Dự đoán (Predictive Scheduling) bằng Học Máy}
+Để khắc phục điểm yếu chí mạng của mô hình phản ứng, nghiên cứu này đề xuất một kiến trúc Lập lịch dự đoán (Predictive Scheduling) chủ động. Ý tưởng cốt lõi là: Nếu chúng ta có thể "tiên đoán" trước được thời điểm và khối lượng truy cập sẽ đến trong tương lai gần, hệ thống có thể chủ động cấp phát tài nguyên và khởi động sẵn các Pod (gọi là cơ chế Pre-warming). Khi yêu cầu của người dùng thực sự đến, hệ thống đã ở trạng thái sẵn sàng để phục vụ ngay lập tức, triệt tiêu hoàn toàn thời gian khởi động lạnh.
+
+Để hiện thực hóa khả năng dự đoán này, chúng tôi ứng dụng mô hình Học máy (Machine Learning), cụ thể là mạng nơ-ron hồi quy dài-ngắn hạn (Long Short-Term Memory - LSTM). LSTM là một kiến trúc mạng nơ-ron học sâu (Deep Learning) đặc biệt xuất sắc trong việc nắm bắt các phụ thuộc dài hạn và các mẫu chu kỳ (seasonality) trong dữ liệu chuỗi thời gian (Time-series data). Hệ thống sẽ liên tục thu thập dữ liệu về số lượng yêu cầu (Request per second - RPS) thông qua hệ thống giám sát Prometheus, đưa vào mô hình LSTM để đưa ra dự báo. Dựa vào dự báo này, một bộ điều khiển (Custom Controller) tự phát triển sẽ can thiệp vào Kubernetes để "làm ấm" hệ thống.
+
+\subsection{Mục tiêu và Phạm vi nghiên cứu}
+\textbf{Mục tiêu chính:}
 \begin{itemize}
-    \item Deploying Knative on Kubernetes as the serverless operating platform.
-    \item Using Prometheus to collect metrics on traffic and function startup latency.
-    \item Building a Machine Learning model for workload forecasting using Python and PyTorch.
-    \item Designing a proactive Pre-warming strategy based on forecasting results.
-    \item Evaluating and balancing idle resource costs and system response time.
+    \item Phân tích và làm rõ cơ chế hoạt động, cũng như các điểm nghẽn gây ra hiện tượng khởi động lạnh trên nền tảng Knative.
+    \item Thiết kế, phát triển và huấn luyện mô hình Học sâu LSTM có khả năng dự đoán biến động lưu lượng mạng với độ chính xác cao.
+    \item Phát triển một Kubernetes Custom Controller bằng ngôn ngữ Python có khả năng tương tác với API của Kubernetes để thao tác mở rộng quy mô dựa trên kết quả dự đoán.
+    \item Đánh giá hiệu suất của giải pháp đề xuất thông qua các mô phỏng (simulations) về lưu lượng truy cập tăng vọt, so sánh với cơ chế Autoscaler mặc định của Knative.
 \end{itemize}
 
-The remainder of the paper is organized as follows: Section 2 presents the foundational technologies and methods used; Section 3 describes the system implementation process in detail; Section 4 presents the test scenarios and analyzes the results; finally, Section 5 summarizes the project and proposes future directions.
+\textbf{Phạm vi nghiên cứu:}
+Nghiên cứu này tập trung vào việc tối ưu hóa độ trễ ở cấp độ nền tảng (Platform level) cho các cụm Kubernetes/Knative, không đi sâu vào việc tối ưu hóa mã nguồn (code-level) của từng ngôn ngữ lập trình cụ thể (ví dụ như biên dịch AOT của Java hay tối ưu hóa thư viện Python). Khung đánh giá được giới hạn trong một môi trường mô phỏng cục bộ (Local Kubernetes Cluster) sử dụng các mẫu tải nhân tạo (synthetic workloads) được thiết kế để mô phỏng các đợt tấn công DDoS hoặc sự kiện Flash-sale.
+
+\subsection{Cấu trúc của Luận văn}
+Nội dung của luận văn được tổ chức thành 5 chương chính như sau:
+\begin{itemize}
+    \item \textbf{Chương 1 - Tổng quan:} Giới thiệu bối cảnh, bài toán, giải pháp đề xuất và mục tiêu nghiên cứu.
+    \item \textbf{Chương 2 - Cơ sở lý thuyết và Các công nghệ liên quan:} Trình bày chi tiết về kiến trúc Kubernetes, Knative, KPA, và lý thuyết nền tảng về mô hình dự báo chuỗi thời gian LSTM.
+    \item \textbf{Chương 3 - Kiến trúc Đề xuất và Hiện thực:} Đi sâu vào thiết kế hệ thống, giải thuật làm mịn (Smoothing Algorithm), cơ chế giả lập tải 3 pha (3-Phase Spike Simulation) và giao diện giám sát (Executive Dashboard).
+    \item \textbf{Chương 4 - Đánh giá và Kết quả Thực nghiệm:} Phân tích các số liệu thu thập được từ thực nghiệm, so sánh hiệu năng và đánh giá trực quan qua Dashboard.
+    \item \textbf{Chương 5 - Kết luận và Hướng phát triển:} Tóm tắt lại những đóng góp của đề tài và mở ra các định hướng cải tiến trong tương lai.
+\end{itemize}
