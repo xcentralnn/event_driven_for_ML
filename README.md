@@ -13,6 +13,14 @@ By proactively scaling Kubernetes Deployments based on Time-Series Forecasting (
   - **ML Model Insights Tab:** Connects real-time prediction data to a mathematically simulated confidence-interval forecast graph.
   - **Premium AWS-style UI:** Styled with deep slate gradient animations and a sleek dark mode.
 
+## Screenshots
+
+![Executive Dashboard - Scaling Trajectory](docs/images/dashboard_main.png)
+*Executive Dashboard showing real-time scaling trajectory and cluster topology.*
+
+![Executive Dashboard - ML Model Insights](docs/images/dashboard_ml.png)
+*ML Model Insights tab showing the LSTM prediction curve and confidence intervals.*
+
 ## Repository Structure
 
 - **`docs/`**: Contains the LaTeX source code for the research report/thesis, including chapters, references, and the compiled `main.pdf`.

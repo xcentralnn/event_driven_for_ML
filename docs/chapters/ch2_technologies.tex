@@ -1,3 +1,4 @@
+% !TEX root = ../main.tex
 \section{Cơ sở Lý thuyết và Công nghệ}
 
 \subsection{Hệ sinh thái Kubernetes}
@@ -9,13 +10,13 @@ Một trong những tính năng cốt lõi của Kubernetes là \textbf{Horizont
     \text{desiredReplicas} = \left\lceil \text{currentReplicas} \times \frac{\text{currentMetricValue}}{\text{desiredMetricValue}} \right\rceil
 \end{equation}
 
-Mặc dù HPA rất mạnh mẽ, nhưng nó được thiết kế chủ yếu cho các ứng dụng kiến trúc Microservices truyền thống luôn luôn chạy (always-on). HPA không hỗ trợ khả năng thu hẹp số lượng bản sao về 0 (Scale-to-Zero) do đặc thù kiến trúc mạng và định tuyến của Kubernetes. Điều này đã mở đường cho sự ra đời của các nền tảng Serverless như Knative.
+Mặc dù HPA rất mạnh mẽ, nhưng nó được thiết kế chủ yếu cho các ứng dụng kiến trúc Microservices truyền thống luôn luôn chạy (always-on). HPA không hỗ trợ khả năng thu hẹp số lượng bản sao về 0 (Scale-to-Zero) do đặc thù kiến trúc mạng và định tuyến của Kubernetes. Điều này đã mở đường cho sự ra đời của các nền tảng Serverless như Knative \cite{knative2023}.
 
 \subsection{Nền tảng Knative}
 Knative là một khung ứng dụng (framework) được xây dựng trên Kubernetes để quản lý vòng đời của các workload Serverless. Knative bao gồm hai thành phần chính: Knative Serving và Knative Eventing. Trong phạm vi nghiên cứu của luận văn này, chúng tôi tập trung chủ yếu vào Knative Serving.
 
 \subsubsection{Knative Serving}
-Knative Serving định nghĩa một tập hợp các tài nguyên tùy chỉnh (Custom Resource Definitions - CRDs) trên Kubernetes để đơn giản hóa quá trình triển khai ứng dụng, tự động quản lý định tuyến lưu lượng mạng (Networking) và đặc biệt là khả năng tự động mở rộng theo yêu cầu (Request-driven Autoscaling). 
+Knative Serving định nghĩa một tập hợp các tài nguyên tùy chỉnh (Custom Resource Definitions - CRDs) trên Kubernetes để đơn giản hóa quá trình triển khai ứng dụng, tự động quản lý định tuyến lưu lượng mạng (Networking) và đặc biệt là khả năng tự động mở rộng theo yêu cầu (Request-driven Autoscaling) \cite{knative2023}. 
 
 Knative cho phép các dịch vụ thu hẹp số lượng Pod về 0 (Scale-to-Zero) khi không có yêu cầu nào được gửi đến trong một khoảng thời gian chờ (thường được gọi là scale-to-zero-grace-period). Tính năng này là cốt lõi của mô hình thanh toán "pay-as-you-go", giúp các doanh nghiệp tiết kiệm hàng triệu đô la chi phí máy chủ nhàn rỗi.
 
@@ -81,7 +82,12 @@ Khi một dịch vụ (Service) đã thu hẹp về 0 Pod, không có điểm cu
     \item Khi Pod mới báo cáo trạng thái Sẵn sàng (Ready), Activator sẽ giải phóng các yêu cầu đang bị giữ và chuyển tiếp (forward) chúng đến Pod mới.
 \end{enumerate}
 
-Thời gian từ lúc Activator nhận yêu cầu đầu tiên cho đến khi Pod mới sẵn sàng phục vụ chính là \textbf{Độ trễ khởi động lạnh (Cold-start Latency)}.
+Thời gian từ lúc Activator nhận yêu cầu đầu tiên cho đến khi Pod mới sẵn sàng phục vụ chính là \textbf{Độ trễ khởi động lạnh (Cold-start Latency)} \cite{wang2018peeking}.
+
+\subsection{Hệ thống Giám sát Prometheus}
+Prometheus là một hệ thống giám sát và cảnh báo nguồn mở (open-source) chuyên dụng, được xây dựng ban đầu tại SoundCloud và hiện là một trong những dự án cốt lõi của Cloud Native Computing Foundation (CNCF). Khác với các hệ thống giám sát truyền thống, Prometheus hoạt động theo mô hình kéo (pull-model), chủ động thu thập các số liệu (metrics) từ các mục tiêu (targets) đã được cấu hình sẵn thông qua các cổng giao tiếp HTTP.
+
+Tất cả các dữ liệu thu thập được lưu trữ dưới dạng \textbf{Chuỗi thời gian (Time-series data)}, trong đó mỗi điểm dữ liệu được gắn thẻ bằng một nhãn (label) dạng key-value và một mốc thời gian (timestamp). Điều này làm cho Prometheus cực kỳ phù hợp để thu thập dữ liệu về lưu lượng mạng (như số lượng request mỗi giây - RPS) sinh ra từ Knative Activator. Trong ngữ cảnh của đồ án này, Prometheus đóng vai trò là xương sống cung cấp nguồn dữ liệu lịch sử đầu vào cho mô hình Học máy để tiến hành phân tích và dự báo.
 
 \subsection{Bài toán Dự báo Chuỗi thời gian (Time-series Forecasting)}
 Để giải quyết bài toán khởi động lạnh, chúng ta cần chuyển đổi mô hình mở rộng quy mô từ dạng phản ứng (Reactive) sang dạng dự đoán (Predictive). Điều này đòi hỏi hệ thống phải có khả năng dự báo được khối lượng lưu lượng truy cập mạng trong tương lai dựa trên lịch sử trong quá khứ. Đây là một bài toán kinh điển trong lĩnh vực phân tích dữ liệu được gọi là Dự báo chuỗi thời gian.

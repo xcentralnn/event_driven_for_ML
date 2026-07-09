@@ -1,30 +1,31 @@
+% !TEX root = ../main.tex
 \section{Tổng quan}
 
 \subsection{Giới thiệu chung về Điện toán Đám mây và Serverless Computing}
-Trong thập kỷ qua, ngành công nghiệp phần mềm đã chứng kiến sự dịch chuyển mạnh mẽ từ các kiến trúc nguyên khối (Monolithic) sang các hệ thống phân tán và vi dịch vụ (Microservices). Sự bùng nổ của Điện toán đám mây (Cloud Computing) đã cung cấp hạ tầng linh hoạt giúp các tổ chức triển khai ứng dụng một cách nhanh chóng. Điểm nhấn lớn nhất trong quá trình tiến hóa này chính là sự xuất hiện của mô hình Điện toán phi máy chủ (Serverless Computing). 
+Gần đây, kiến trúc nguyên khối (Monolithic) đang dần nhường chỗ cho hệ thống phân tán và vi dịch vụ (Microservices). Điện toán đám mây (Cloud Computing) phát triển nhanh chóng, kéo theo nhiều cách thức mới để triển khai ứng dụng. Trong số đó, mô hình Điện toán phi máy chủ (Serverless Computing) đang nhận được nhiều sự chú ý \cite{shahrad2020serverless, hellerstein2018serverless}.
 
-Serverless Computing cho phép các nhà phát triển tập trung hoàn toàn vào việc viết mã nguồn (code) mà không cần phải quan tâm đến việc quản lý, cấp phát hay bảo trì máy chủ vật lý hay máy ảo bên dưới. Một trong những lợi ích cốt lõi của Serverless là mô hình thanh toán "pay-as-you-go" (chỉ trả tiền cho những tài nguyên thực sự được sử dụng tính theo phần nghìn giây) và khả năng "Scale-to-Zero" (thu gọn quy mô về không). Khi không có bất kỳ lưu lượng truy cập (traffic) nào, hệ thống sẽ tự động tắt toàn bộ các phiên bản (instances) của ứng dụng để tiết kiệm tối đa chi phí. Tuy nhiên, chính khả năng đột phá này lại mang đến một nhược điểm kỹ thuật nghiêm trọng: Bài toán khởi động lạnh.
+Với Serverless, lập trình viên không còn phải quản lý hay duy trì các máy chủ vật lý hay máy ảo nữa. Họ chỉ cần viết code. Hệ thống sẽ tính tiền dựa trên lượng tài nguyên dùng thực tế (pay-as-you-go). Đặc biệt nhất là tính năng "Scale-to-Zero" – hệ thống có thể tắt toàn bộ các ứng dụng (instances) đang chạy nếu không có request nào, giúp tiết kiệm chi phí đáng kể. Mặc dù rất tiện lợi, nhưng mô hình này lại sinh ra một vấn đề kỹ thuật lớn: lỗi khởi động lạnh.
 
-\subsection{Bài toán Khởi động lạnh (Cold-start Problem) và hệ lụy}
-Khởi động lạnh (Cold-start) xảy ra khi một yêu cầu (request) mạng được gửi tới một ứng dụng Serverless đang ở trạng thái ngủ (Scale-to-Zero, tức là hiện không có bất kỳ container hay pod nào đang chạy). Để phục vụ yêu cầu này, hệ thống đám mây bắt buộc phải thực hiện chuỗi các thao tác:
+\subsection{Bài toán Khởi động lạnh (Cold-start Problem)}
+Khởi động lạnh (Cold-start) diễn ra khi có một request gửi đến ứng dụng Serverless, nhưng lúc đó ứng dụng lại đang ngủ (nghĩa là số lượng pod bằng 0). Khi đó, hệ thống đám mây sẽ phải làm khá nhiều việc để xử lý request này:
 \begin{enumerate}
-    \item Cấp phát tài nguyên tính toán (CPU, Memory).
-    \item Kéo (pull) container image từ kho lưu trữ (Registry).
-    \item Khởi tạo môi trường mạng (Networking, IP allocation).
-    \item Khởi động ứng dụng bên trong container (phụ thuộc nhiều vào framework, ví dụ: khởi động JVM của Java hoặc load thư viện của Python).
+    \item Xin cấp tài nguyên (CPU, Memory).
+    \item Kéo (pull) image từ kho (Registry).
+    \item Cấu hình mạng (cấp phát IP).
+    \item Chạy ứng dụng bên trong container. Tùy framework mà bước này nhanh hay chậm, như Java thì phải bật JVM, còn Python thì load thư viện.
 \end{enumerate}
 
-Toàn bộ quá trình này thường mất từ vài giây đến hàng chục giây tùy thuộc vào độ phức tạp của ứng dụng. Yêu cầu đầu tiên của người dùng sẽ bị treo (blocked) cho đến khi quá trình khởi động hoàn tất. Trong các hệ thống thời gian thực (real-time systems) hoặc các hệ thống giao dịch tài chính yêu cầu độ trễ cực thấp (Ultra-low latency), sự chậm trễ này là hoàn toàn không thể chấp nhận được, dẫn đến trải nghiệm người dùng tồi tệ, giảm tỷ lệ chuyển đổi (conversion rate) và vi phạm các cam kết chất lượng dịch vụ (SLA - Service Level Agreement).
+Tùy vào độ phức tạp của ứng dụng, toàn bộ quá trình này mất khoảng vài giây, có khi lên đến cả chục giây. Hậu quả là request đầu tiên của người dùng sẽ bị nghẽn (block) chờ cho đến khi ứng dụng chạy xong. Đối với những hệ thống đòi hỏi thời gian phản hồi siêu thấp (như giao dịch tài chính hay thời gian thực), độ trễ này ảnh hưởng rất xấu đến trải nghiệm người dùng và dễ gây vi phạm cam kết dịch vụ (SLA).
 
 \subsection{Nền tảng Knative và Hạn chế của Cơ chế mở rộng phản ứng}
-Knative là một nền tảng mã nguồn mở được xây dựng trên nền tảng Kubernetes nhằm mang lại trải nghiệm Serverless cho các cụm container. Knative Serving là thành phần chịu trách nhiệm quản lý việc triển khai và tự động mở rộng quy mô (auto-scaling). Cơ chế mở rộng mặc định của Knative là Knative Pod Autoscaler (KPA), hoạt động dựa trên phương pháp mở rộng phản ứng (Reactive Autoscaling).
+Knative là một công cụ mã nguồn mở được chạy trên nền Kubernetes, giúp mang lại tính năng Serverless cho các cụm container \cite{knative2023}. Cơ chế mở rộng số lượng pod mặc định của Knative là Knative Pod Autoscaler (KPA). Nó hoạt động theo kiểu phản ứng (Reactive Autoscaling).
 
-Phương pháp phản ứng có nghĩa là KPA chỉ bắt đầu ra quyết định mở rộng số lượng Pod (từ 0 lên 1, hoặc từ 1 lên N) \textit{sau khi} nó quan sát thấy lưu lượng truy cập thực tế đã vượt qua một ngưỡng (threshold) nhất định. Dù KPA hoạt động rất tốt trong việc phản ứng với tải, nhưng do tính chất "chờ có request mới scale", hệ thống chắc chắn sẽ bị độ trễ khởi động lạnh mỗi khi lưu lượng truy cập đột ngột tăng vọt (traffic spike) từ trạng thái nhàn rỗi. 
+Nói đơn giản là KPA sẽ đợi đến khi thấy lượng truy cập thực tế vượt mức quy định thì mới bắt đầu tăng số pod lên. Mặc dù cách này khá an toàn, nhưng vì tính chất "thấy request mới scale", hệ thống chắc chắn sẽ bị dính khởi động lạnh nếu bỗng nhiên lượng truy cập tăng vọt từ mức 0.
 
-\subsection{Giải pháp Đề xuất: Lập lịch Dự đoán (Predictive Scheduling) bằng Học Máy}
-Để khắc phục điểm yếu chí mạng của mô hình phản ứng, nghiên cứu này đề xuất một kiến trúc Lập lịch dự đoán (Predictive Scheduling) chủ động. Ý tưởng cốt lõi là: Nếu chúng ta có thể "tiên đoán" trước được thời điểm và khối lượng truy cập sẽ đến trong tương lai gần, hệ thống có thể chủ động cấp phát tài nguyên và khởi động sẵn các Pod (gọi là cơ chế Pre-warming). Khi yêu cầu của người dùng thực sự đến, hệ thống đã ở trạng thái sẵn sàng để phục vụ ngay lập tức, triệt tiêu hoàn toàn thời gian khởi động lạnh.
+\subsection{Giải pháp Đề xuất: Lập lịch Dự đoán (Predictive Scheduling) với Học máy}
+Thay vì thụ động đợi tải tăng, nghiên cứu này xây dựng một giải pháp Lập lịch dự đoán (Predictive Scheduling) chủ động \cite{daw2020predictive}. Mục tiêu là dự đoán trước lượng truy cập để tạo sẵn pod (Pre-warming). Như vậy khi request tới thì pod đã có sẵn rồi, không còn tình trạng khởi động lạnh nữa.
 
-Để hiện thực hóa khả năng dự đoán này, chúng tôi ứng dụng mô hình Học máy (Machine Learning), cụ thể là mạng nơ-ron hồi quy dài-ngắn hạn (Long Short-Term Memory - LSTM). LSTM là một kiến trúc mạng nơ-ron học sâu (Deep Learning) đặc biệt xuất sắc trong việc nắm bắt các phụ thuộc dài hạn và các mẫu chu kỳ (seasonality) trong dữ liệu chuỗi thời gian (Time-series data). Hệ thống sẽ liên tục thu thập dữ liệu về số lượng yêu cầu (Request per second - RPS) thông qua hệ thống giám sát Prometheus, đưa vào mô hình LSTM để đưa ra dự báo. Dựa vào dự báo này, một bộ điều khiển (Custom Controller) tự phát triển sẽ can thiệp vào Kubernetes để "làm ấm" hệ thống.
+Để làm được việc này, chúng tôi áp dụng mô hình mạng nơ-ron hồi quy dài-ngắn hạn (LSTM) \cite{hochreiter1997long}. LSTM xử lý rất tốt các chuỗi dữ liệu theo thời gian (Time-series data). Dữ liệu về số lượng request (RPS) sẽ được gom lại qua Prometheus, sau đó nạp vào mô hình LSTM để dự báo tải. Dựa trên số liệu dự báo, một chương trình tự viết (Custom Controller) sẽ điều khiển Kubernetes tăng hoặc giảm số pod cho phù hợp.
 
 \subsection{Mục tiêu và Phạm vi nghiên cứu}
 \textbf{Mục tiêu chính:}

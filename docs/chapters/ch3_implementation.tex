@@ -1,13 +1,16 @@
+% !TEX root = ../main.tex
 \section{Kiến trúc Đề xuất và Hiện thực}
 
 \subsection{Tổng quan Kiến trúc Hệ thống Predictive Scaler}
-Để hiện thực hóa khái niệm Lập lịch dự đoán (Predictive Scheduling), chúng tôi đã thiết kế và triển khai một kiến trúc vi dịch vụ (Microservices Architecture) chạy hoàn toàn trên nền tảng Kubernetes. Kiến trúc này đóng vai trò như một lớp phủ (overlay) thông minh nằm phía trên cơ chế Knative mặc định. Hệ thống bao gồm ba thành phần cốt lõi tương tác chặt chẽ với nhau:
+Thay vì phụ thuộc hoàn toàn vào cơ chế mặc định của Knative, chúng tôi xây dựng thêm một lớp kiến trúc vi dịch vụ (Microservices) chạy song song trên Kubernetes để hỗ trợ Lập lịch dự đoán (Predictive Scheduling). Hệ thống bao gồm 3 thành phần chính:
 
 \begin{itemize}
-    \item \textbf{Mô hình Dự báo Học máy (ML Forecasting Service):} Đóng vai trò là "Bộ não" của hệ thống, liên tục phân tích dữ liệu và đưa ra các dự báo số lượng Pod cần thiết.
-    \item \textbf{Bộ điều khiển Tỷ lệ tùy chỉnh (Predictive Scaler Controller):} Đóng vai trò là "Cánh tay thi hành", nhận tín hiệu từ bộ não và trực tiếp can thiệp vào API của Kubernetes để thay đổi cấu hình triển khai (Deployment).
-    \item \textbf{Bảng điều khiển Giám sát (Executive Dashboard):} Cung cấp giao diện trực quan theo thời gian thực (Real-time) cho quản trị viên hệ thống để theo dõi quá trình quyết định của AI và trạng thái vòng đời của các Pod.
+    \item \textbf{Mô hình Dự báo (ML Forecasting Service):} Đây là một service riêng biệt, làm nhiệm vụ phân tích dữ liệu lịch sử để tính toán ra số lượng Pod cần chuẩn bị trước.
+    \item \textbf{Bộ điều khiển (Predictive Scaler Controller):} Nhận số liệu từ ML Service, sau đó gọi trực tiếp vào API của Kubernetes để sửa đổi số lượng bản sao (replicas) của Deployment tương ứng.
+    \item \textbf{Bảng điều khiển Giám sát (Executive Dashboard):} Giao diện hiển thị trực tiếp các thông số kỹ thuật, số lượng Pod hiện tại và trạng thái dự đoán để dễ theo dõi.
 \end{itemize}
+
+Để các thành phần này có dữ liệu hoạt động, chúng tôi sử dụng \textbf{Prometheus}. Prometheus chạy ngầm và liên tục kéo (pull) các số liệu lưu lượng (như Request per second) từ Knative. ML Service sẽ truy vấn vào Prometheus để lấy dữ liệu làm đầu vào phân tích.
 
 \begin{figure}[h!]
     \centering
